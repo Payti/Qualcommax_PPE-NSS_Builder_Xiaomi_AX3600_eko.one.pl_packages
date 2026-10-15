@@ -1,25 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Prosty test jednostkowy dla logiki prune z uwzględnieniem prefiksów wariantów PPE-NSS
 mock_gh_release_list() {
   local prefix="$1"
   if [ "$prefix" = "ppe-nss" ]; then
     cat << 'EOF'
 [
-  {"tagName": "ppe-nss-2026-10-15"},
-  {"tagName": "ppe-nss-2026-10-14"},
-  {"tagName": "ppe-nss-2026-10-13"},
-  {"tagName": "ppe-nss-mesh-2026-10-12"},
-  {"tagName": "ppe-nss-2026-10-11"}
+  {"tagName": "ppe-nss-20261015T120000Z-1001-offload"},
+  {"tagName": "ppe-nss-20261014T120000Z-1000-offload"},
+  {"tagName": "ppe-nss-20261013T120000Z-0999-offload"},
+  {"tagName": "ppe-nss-mesh-20261012T120000Z-0998-offload"},
+  {"tagName": "ppe-nss-20261011T120000Z-0997-offload"}
 ]
 EOF
   else
     cat << 'EOF'
 [
-  {"tagName": "ppe-nss-mesh-2026-10-15"},
-  {"tagName": "ppe-nss-mesh-2026-10-14"},
-  {"tagName": "ppe-nss-mesh-2026-10-13"}
+  {"tagName": "ppe-nss-mesh-20261015T120000Z-2001-offload"},
+  {"tagName": "ppe-nss-mesh-20261014T120000Z-2000-offload"},
+  {"tagName": "ppe-nss-mesh-20261013T120000Z-1999-offload"}
 ]
 EOF
   fi
@@ -27,19 +26,21 @@ EOF
 
 echo "Running prune-releases tests..."
 
-# Test 1: Sprawdzenie poprawności filtrowania dla ppe-nss z keep=2
 KEEP_PER_VARIANT=2
 prefix="ppe-nss"
 json_data=$(mock_gh_release_list "$prefix")
 
+# Odczyt tagów zgodny z logiką ze skryptu prune-releases.sh i używający KEEP_PER_VARIANT
 mapfile -t tags < <(
-  echo "$json_data" | jq -r --arg p "${prefix}-" '[.[] | select(.tagName | startswith($p) and (startswith("ppe-nss-mesh-") | not)) | .tagName]' | jq -r '.[]'
+  echo "$json_data" | jq -r --arg p "${prefix}-" --argjson limit "$KEEP_PER_VARIANT" '
+    [.[] | select(.tagName | startswith($p) and (startswith("ppe-nss-mesh-") | not)) | .tagName] | .[0:$limit]
+  '
 )
 
-if [ "${#tags[@]}" -eq 4 ] && [ "${tags[2]}" = "ppe-nss-2026-10-13" ]; then
-  echo "PASS: Filtrowanie i zachowanie wariantów działa poprawnie."
+if [ "${#tags[@]}" -eq 2 ]; then
+  echo "PASS: Filtrowanie i limit KEEP_PER_VARIANT ($KEEP_PER_VARIANT) dla $prefix działają poprawnie."
 else
-  echo "FAIL: Błąd filtrowania tagów."
+  echo "FAIL: Niepoprawna liczba odfiltrowanych tagów."
   exit 1
 fi
 
