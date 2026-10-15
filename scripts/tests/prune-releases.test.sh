@@ -7,8 +7,7 @@ mock_gh_release_list() {
   {"tagName": "ppe-nss-20261015T120000Z-1001-offload"},
   {"tagName": "ppe-nss-20261014T120000Z-1000-offload"},
   {"tagName": "ppe-nss-20261013T120000Z-0999-offload"},
-  {"tagName": "ppe-nss-mesh-20261012T120000Z-0998-offload"},
-  {"tagName": "ppe-nss-20261011T120000Z-0997-offload"}
+  {"tagName": "ppe-nss-mesh-20261012T120000Z-0998-offload"}
 ]
 EOF
 }
@@ -26,7 +25,7 @@ mapfile -t tags < <(
   ' | jq -r '.[]'
 )
 
-# Weryfikacja: w mocku są 3 pasujące tagi ppe-nss
+# Weryfikacja: w mocku są dokładnie 3 pasujące tagi ppe-nss
 if [ "${#tags[@]}" -eq 3 ]; then
   echo "PASS: Znaleziono dokładnie 3 pasujące tagi dla wariantu $prefix."
 else
@@ -34,7 +33,7 @@ else
   exit 1
 fi
 
-# Sprawdzenie mechanizmu ucinania powyżej KEEP_PER_VARIANT (zostają 2 najnowsze, reszta do usunięcia)
+# Sprawdzenie mechanizmu ucinania powyżej KEEP_PER_VARIANT (zostają 2 najnowsze, 1 do usunięcia)
 total=${#tags[@]}
 to_delete=$(( total - KEEP_PER_VARIANT ))
 
