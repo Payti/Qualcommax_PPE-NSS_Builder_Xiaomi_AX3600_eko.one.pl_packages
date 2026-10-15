@@ -32,7 +32,7 @@ echo "=== [2/4] Nakładanie łatek na drzewo OpenWrt (jeśli istnieją) ==="
 shopt -s nullglob
 for patch_dir in \
   "${BUILDER_REPO}/patches/openwrt" \
-  "${BUILDER_REPO}/patches/ppe" \
+  "${BUILDER_REPO}/patches/ppe-nss" \
   "${BUILDER_REPO}/patches/${VARIANT}"; do
   if [ -d "$patch_dir" ]; then
     for p in "$patch_dir"/*.patch; do
