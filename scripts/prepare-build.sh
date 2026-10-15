@@ -30,7 +30,6 @@ echo "---------------------------------------------"
 
 echo "=== [2/4] Nakładanie łatek na drzewo OpenWrt (jeśli istnieją) ==="
 shopt -s nullglob
-# Unikalna lista katalogów dla drzewa głównego OpenWrt
 for patch_dir in \
   "${BUILDER_REPO}/patches" \
   "${BUILDER_REPO}/patches/openwrt" \
@@ -39,11 +38,20 @@ for patch_dir in \
   "${BUILDER_REPO}/patches/${VARIANT}"; do
   if [ -d "$patch_dir" ]; then
     for p in "$patch_dir"/*.patch; do
-      if patch -p1 -d "$OPENWRT_DIR" --dry-run --forward <"$p" >/dev/null 2>&1; then
-        echo "--> Applying OpenWrt patch: $(basename "$p") (from ${patch_dir#"${BUILDER_REPO}/"})"
-        patch -p1 -d "$OPENWRT_DIR" --forward <"$p"
+      patch_name="$(basename "$p")"
+      patch_rel_dir="${patch_dir#"${BUILDER_REPO}/"}"
+
+      # 1. Sprawdź (usuwając ewentualne znaki CRLF w locie), czy łatka wchodzi czysto
+      if tr -d '\r' <"$p" | patch -p1 -d "$OPENWRT_DIR" --dry-run --forward -F 3 >/dev/null 2>&1; then
+        echo "--> Applying OpenWrt patch: ${patch_name} (from ${patch_rel_dir})"
+        tr -d '\r' <"$p" | patch -p1 -d "$OPENWRT_DIR" --forward -F 3
+      # 2. Sprawdź, czy łatka jest już zaaplikowana w drzewie źródłowym (--reverse)
+      elif tr -d '\r' <"$p" | patch -p1 -d "$OPENWRT_DIR" --dry-run --reverse -F 3 >/dev/null 2>&1; then
+        echo "--> Skipping OpenWrt patch: ${patch_name} (ALREADY APPLIED in source tree)"
+      # 3. Jeśli ani jedno, ani drugie - wypisz dokładny błąd z komendy patch!
       else
-        echo "--> Skipping OpenWrt patch: $(basename "$p") (already applied or not applicable)"
+        echo "--> [WARNING] Patch ${patch_name} failed dry-run! Diagnostyka:"
+        tr -d '\r' <"$p" | patch -p1 -d "$OPENWRT_DIR" --dry-run --forward -F 3 || true
       fi
     done
   fi
