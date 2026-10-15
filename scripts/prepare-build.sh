@@ -31,13 +31,16 @@ echo "---------------------------------------------"
 echo "=== [2/4] Nakładanie łatek na drzewo OpenWrt (jeśli istnieją) ==="
 shopt -s nullglob
 for patch_dir in \
+  "${BUILDER_REPO}/patches" \
   "${BUILDER_REPO}/patches/openwrt" \
-  "${BUILDER_REPO}/patches/ppe-nss" \
+  "${BUILDER_REPO}/patches/feeds/ppe-nss" \
+  "${BUILDER_REPO}/patches/tree/ppe" \
+  "${BUILDER_REPO}/patches/tree/${VARIANT}" \
   "${BUILDER_REPO}/patches/${VARIANT}"; do
   if [ -d "$patch_dir" ]; then
     for p in "$patch_dir"/*.patch; do
       if patch -p1 -d "$OPENWRT_DIR" --dry-run --forward <"$p" >/dev/null 2>&1; then
-        echo "--> Applying OpenWrt patch: $(basename "$p")"
+        echo "--> Applying OpenWrt patch: $(basename "$p") (from $(basename "$patch_dir"))"
         patch -p1 -d "$OPENWRT_DIR" --forward <"$p"
       else
         echo "--> Skipping OpenWrt patch: $(basename "$p") (already applied or not applicable)"
