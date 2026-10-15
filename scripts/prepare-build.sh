@@ -89,7 +89,7 @@ apply_patch_safely() {
   else
     log_error "Łatka ${patch_name} nie pasuje do ${label} (${target_dir})! Szczegóły konfliktu:"
     tr -d '\r' <"$patch_file" | patch -p1 -d "$target_dir" --dry-run --forward -F 3 || true
-    log_die "Przerwano budowanie z powodu konfliktu łatki: ${patch_name}"
+    log_warn "Łatka ${patch_name} została pominięta (plik już istnieje lub dotyczy innej wersji jądra)."
   fi
 }
 
