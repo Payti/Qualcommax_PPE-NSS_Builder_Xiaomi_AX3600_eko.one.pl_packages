@@ -1,0 +1,10 @@
+{
+    "luci-mod-status-index": {
+        "description": "Thermal data access",
+        "read": {
+            "ubus": {
+                "nss_thermal": [ "read" ]
+            }
+        }
+    }
+}

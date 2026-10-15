@@ -1,0 +1,508 @@
+name: Build PPE-NSS
+
+# Builds the PPE-NSS and PPE-NSS-MESH images for the Xiaomi AX3600:
+#   check -> build (matrix: ppe-nss, ppe-nss-mesh) -> prune
+# All build parameters live in the `env:` block below — it is the one file you edit.
+on:
+  workflow_dispatch:
+    inputs:
+      enable_tmate:
+        description: 'Enable tmate SSH debug session for this manual run'
+        required: false
+        default: 'no'
+        type: choice
+        options:
+          - 'no'
+          - 'yes'
+  push:
+    branches: [main]
+    paths:
+      - 'devices/**'
+      - 'patches/feeds/**'
+      - 'scripts/**'
+      - '.github/workflows/build*.yml'
+  schedule:
+    - cron: "0 */2 * * *"
+
+concurrency:
+  group: build-ppe-nss-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  UPSTREAM_REPO: JuliusBairaktaris/openwrt-ppe-nss
+  UPSTREAM_REF: ppe-nss
+  NSS_REPO: JuliusBairaktaris/nss-packages
+  NSS_REF: edma-nss
+  VARIANT: ppe-nss
+  # The luci feed comes from the fork carrying luci-app-ppe-qos (openwrt/luci
+  # PR 8965); prepare-build.sh swaps it in for the default luci feed.
+  TARGET: qualcommax/ipq807x
+  DEVICE: xiaomi_ax3600
+  DEVICE_DIR: devices/xiaomi_ax3600
+  RELEASE_PREFIX: ppe-nss
+  # KEEP=4 retains the last 2 standard (ppe-nss) + 2 mesh (ppe-nss-mesh) releases
+  KEEP: "4"
+  FEEDS: |
+    src-git nss https://github.com/JuliusBairaktaris/nss-packages.git;edma-nss
+    src-git luci https://github.com/JuliusBairaktaris/luci.git;luci-app-ppe-qos
+    src-git obsy https://github.com/obsy/packages
+
+jobs:
+  check:
+    name: Check upstream
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      EVENT_NAME: ${{ github.event_name }}
+    outputs:
+      upstream_sha: ${{ steps.check.outputs.upstream_sha || steps.check.outputs.sha }}
+      nss_sha: ${{ steps.check.outputs.nss_sha }}
+      need: ${{ steps.check.outputs.need }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: check
+        run: bash scripts/check-updates.sh
+
+  build:
+    name: Build OpenWrt (${{ matrix.variant }})
+    needs: check
+    if: needs.check.outputs.need == 'true'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 360
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: ppe-nss
+            nss_fw: "12.5"
+            mesh_support: "no"
+            title_label: "PPE-NSS (NSS FW 12.5)"
+          - variant: ppe-nss-mesh
+            nss_fw: "11.4"
+            mesh_support: "yes"
+            title_label: "PPE-NSS MESH (NSS FW 11.4)"
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BUILD_VARIANT: ${{ matrix.variant }}
+      NSS_FW_VERSION: ${{ matrix.nss_fw }}
+    steps:
+      - name: Install build dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update || true
+          sudo apt-get install -y \
+            bzip2 g++ gawk gcc git glibc-source libncurses-dev make rsync mc
+
+      # Enable only for manual runs by the repo owner to avoid blocking scheduled/push builds.
+      - name: Start tmate session for SSH login
+        if: ${{ github.event_name == 'workflow_dispatch' && github.actor == 'Payti' && inputs.enable_tmate == 'yes' }}
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: true
+
+      - name: Free Disk Space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          swap-storage: false
+
+      - name: Checkout OpenWrt source
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ env.UPSTREAM_REPO }}
+          ref: ${{ needs.check.outputs.upstream_sha || env.UPSTREAM_REF }}
+          fetch-depth: 0
+          path: openwrt
+
+      - name: Checkout builder repo
+        uses: actions/checkout@v7
+        with:
+          path: builder
+
+      - name: Prepare build environment
+        env:
+          OPENWRT_DIR: ${{ github.workspace }}/openwrt
+          BUILDER_REPO: ${{ github.workspace }}/builder
+          NSS_SHA: ${{ needs.check.outputs.nss_sha }}
+        run: bash builder/scripts/prepare-build.sh
+
+      - name: Update and install feeds + disable broken packages + patch feeds
+        working-directory: openwrt
+        run: |
+          set -euo pipefail
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+          echo "### Usuwanie pakietów dahdi-linux, rtl8812au-ct, xdp-tools ponieważ się nie kompilują! ###"
+          rm -rf package/feeds/telephony/dahdi-linux
+          rm -rf package/kernel/rtl8812au-ct
+          rm -rf package/network/utils/xdp-tools
+
+          # 🛠️ AUTOMATYCZNA PĘTLA PATCHUJĄCA FEEDY (obsługuje katalogi ppe oraz ppe-nss)
+          shopt -s nullglob
+          for patch_dir in "${{ github.workspace }}/builder/patches/feeds/ppe" "${{ github.workspace }}/builder/patches/feeds/ppe-nss"; do
+            for p in "$patch_dir"/*/*.patch; do
+              feed="feeds/$(basename "$(dirname "$p")")"
+              if [ -d "$feed" ]; then
+                if patch -p1 -d "$feed" --dry-run --forward <"$p" >/dev/null 2>&1; then
+                  echo "--> Patching $feed with $(basename "$p")"
+                  patch -p1 -d "$feed" --forward <"$p"
+                else
+                  echo "--> Skipping $(basename "$p") (already applied or not applicable)"
+                fi
+              fi
+            done
+          done
+          shopt -u nullglob
+
+      # KROK B: Dynamiczne ustawianie pakietów dodatkowych, wersji NSS FW (12.5 vs 11.4 Mesh) oraz i18n
+      - name: Tweak config for ${{ matrix.variant }} (NSS FW ${{ matrix.nss_fw }}) and Polish i18n
+        run: |
+          set -euo pipefail
+          OPENWRT_CONFIG="${{ github.workspace }}/openwrt/.config"
+          DEVICE_CONFIG="builder/${{ env.DEVICE_DIR }}/config"
+
+          if [ ! -f "$OPENWRT_CONFIG" ] && [ -f "$DEVICE_CONFIG" ]; then
+            cp "$DEVICE_CONFIG" "$OPENWRT_CONFIG"
+          fi
+
+          # 1. Dopisanie dodatkowych modułów i pakietów eko.one.pl
+          printf '%s\n' \
+            'CONFIG_IPQ_MEM_PROFILE_512=y' \
+            'CONFIG_KERNEL_IPQ_MEM_PROFILE=512' \
+            'CONFIG_ALL_KMODS=y' \
+            'CONFIG_ALL_NONSHARED=y' \
+            'CONFIG_PACKAGE_kmod-nss-wifi-drv=y' \
+            'CONFIG_PACKAGE_nss-firmware-ipq8074=y' \
+            'CONFIG_ATH11K_NSS_SUPPORT=y' \
+            'CONFIG_PACKAGE_block-mount=m' \
+            'CONFIG_PACKAGE_kmod-crypto-crc32=m' \
+            'CONFIG_PACKAGE_kmod-fs-exfat=m' \
+            'CONFIG_PACKAGE_kmod-fs-f2fs=m' \
+            'CONFIG_PACKAGE_kmod-fs-ntfs3=m' \
+            'CONFIG_PACKAGE_kmod-fs-vfat=m' \
+            'CONFIG_PACKAGE_kmod-nls-cp437=m' \
+            'CONFIG_PACKAGE_kmod-nls-iso8859-1=m' \
+            'CONFIG_PACKAGE_kmod-nls-utf8=m' \
+            'CONFIG_PACKAGE_kmod-scsi-core=m' \
+            'CONFIG_PACKAGE_kmod-usb-storage=m' \
+            'CONFIG_PACKAGE_kmod-usb-storage-uas=m' \
+            'CONFIG_PACKAGE_ip-bridge=y' \
+            'CONFIG_PACKAGE_ip-full=y' \
+            'CONFIG_PACKAGE_ipset=m' \
+            'CONFIG_PACKAGE_iptables-mod-conntrack-extra=y' \
+            'CONFIG_PACKAGE_kmod-bonding=y' \
+            'CONFIG_PACKAGE_kmod-crypto-kpp=y' \
+            'CONFIG_PACKAGE_kmod-crypto-lib-chacha20=y' \
+            'CONFIG_PACKAGE_kmod-crypto-lib-chacha20poly1305=y' \
+            'CONFIG_PACKAGE_kmod-crypto-lib-curve25519=y' \
+            'CONFIG_PACKAGE_kmod-crypto-lib-poly1305=y' \
+            'CONFIG_PACKAGE_kmod-crypto-sha1=y' \
+            'CONFIG_PACKAGE_kmod-crypto-sha256=y' \
+            'CONFIG_PACKAGE_kmod-gre=y' \
+            'CONFIG_PACKAGE_gre=y' \
+            'CONFIG_PACKAGE_kmod-macvlan=y' \
+            'CONFIG_PACKAGE_kmod-nat46=y' \
+            'CONFIG_PACKAGE_kmod-vxlan=y' \
+            'CONFIG_PACKAGE_kmod-sit=y' \
+            'CONFIG_PACKAGE_kmod-ip6-tunnel=y' \
+            'CONFIG_PACKAGE_igmpproxy=y' \
+            'CONFIG_PACKAGE_kmod-ipt-conntrack=y' \
+            'CONFIG_PACKAGE_kmod-ipt-conntrack-extra=y' \
+            '# CONFIG_PACKAGE_kmod-ipt-rtpengine is not set' \
+            'CONFIG_PACKAGE_kmod-iptunnel=y' \
+            'CONFIG_PACKAGE_kmod-l2tp=y' \
+            'CONFIG_PACKAGE_kmod-nf-conncount=y' \
+            'CONFIG_PACKAGE_kmod-nft-bridge=y' \
+            'CONFIG_PACKAGE_kmod-pppol2tp=y' \
+            'CONFIG_PACKAGE_kmod-pptp=y' \
+            'CONFIG_PACKAGE_kmod-thermal=m' \
+            'CONFIG_PACKAGE_kmod-tls=y' \
+            'CONFIG_PACKAGE_kmod-udptunnel4=y' \
+            'CONFIG_PACKAGE_kmod-udptunnel6=y' \
+            'CONFIG_PACKAGE_kmod-wireguard=y' \
+            'CONFIG_PACKAGE_libbpf=y' \
+            'CONFIG_PACKAGE_libcap=y' \
+            'CONFIG_PACKAGE_libcap-ng=y' \
+            'CONFIG_PACKAGE_libelf=y' \
+            'CONFIG_PACKAGE_libipset=m' \
+            'CONFIG_PACKAGE_libqrencode=y' \
+            'CONFIG_PACKAGE_libwebsockets-full=y' \
+            'CONFIG_PACKAGE_libuv=y' \
+            'CONFIG_PACKAGE_libzstd=y' \
+            'CONFIG_PACKAGE_luci-app-mwan3=m' \
+            'CONFIG_PACKAGE_luci-app-ttyd=y' \
+            'CONFIG_PACKAGE_luci-app-upnp=y' \
+            'CONFIG_PACKAGE_luci-i18n-mwan3-pl=m' \
+            'CONFIG_PACKAGE_luci-i18n-ttyd-pl=y' \
+            'CONFIG_PACKAGE_luci-i18n-upnp-pl=y' \
+            'CONFIG_PACKAGE_luci-lib-base=y' \
+            'CONFIG_PACKAGE_luci-lib-ip=y' \
+            'CONFIG_PACKAGE_luci-lib-json=y' \
+            'CONFIG_PACKAGE_luci-lib-nixio=y' \
+            'CONFIG_PACKAGE_luci-lua-runtime=y' \
+            'CONFIG_PACKAGE_luci-mod-rpc=y' \
+            'CONFIG_PACKAGE_luci-proto-gre=y' \
+            'CONFIG_PACKAGE_luci-proto-vxlan=y' \
+            'CONFIG_PACKAGE_luci-proto-wireguard=y' \
+            'CONFIG_PACKAGE_map=y' \
+            'CONFIG_PACKAGE_mesh11sd=m' \
+            'CONFIG_PACKAGE_miniupnpd-nftables=y' \
+            'CONFIG_PACKAGE_mwan3=m' \
+            'CONFIG_PACKAGE_qca-ssdk-shell=y' \
+            'CONFIG_PACKAGE_qrencode=y' \
+            'CONFIG_PACKAGE_tc-full=y' \
+            '# CONFIG_PACKAGE_tc-tiny is not set' \
+            'CONFIG_PACKAGE_tcpdump=m' \
+            'CONFIG_PACKAGE_tcpdump-mini=m' \
+            'CONFIG_PACKAGE_ttyd=y' \
+            'CONFIG_PACKAGE_vxlan=y' \
+            'CONFIG_PACKAGE_wget-ssl=y' \
+            'CONFIG_PACKAGE_wireguard-tools=y' \
+            'CONFIG_PACKAGE_ds-lite=y' \
+            'CONFIG_PACKAGE_ethtool=y' \
+            'CONFIG_PACKAGE_luci=y' \
+            'CONFIG_LUCI_LANG_pl=y' \
+            'CONFIG_PACKAGE_luci-app-firewall=y' \
+            'CONFIG_PACKAGE_sqm-scripts=y' \
+            'CONFIG_PACKAGE_luci-app-sqm=y' \
+            'CONFIG_PACKAGE_luci-i18n-sqm-pl=y' \
+            'CONFIG_PACKAGE_ppe-qos=y' \
+            'CONFIG_PACKAGE_luci-app-ppe-qos=y' \
+            'CONFIG_PACKAGE_luci-i18n-ppe-qos-pl=y' >> "$OPENWRT_CONFIG"
+
+          # 2. Przełączanie wersji Firmware NSS (12.5 vs 11.4) oraz wsparcia 802.11s zależnie od wariantu
+          sed -i '/CONFIG_NSS_FIRMWARE_VERSION_12_5/d' "$OPENWRT_CONFIG"
+          sed -i '/CONFIG_NSS_FIRMWARE_VERSION_11_4/d' "$OPENWRT_CONFIG"
+          sed -i '/CONFIG_ATH11K_NSS_MESH_SUPPORT/d' "$OPENWRT_CONFIG"
+
+          if [ "${{ matrix.mesh_support }}" = "yes" ]; then
+            echo "--> Konfiguracja wariantu MESH (NSS FW 11.4 + ATH11K_NSS_MESH_SUPPORT)"
+            printf '%s\n' \
+              '# CONFIG_NSS_FIRMWARE_VERSION_12_5 is not set' \
+              'CONFIG_NSS_FIRMWARE_VERSION_11_4=y' \
+              'CONFIG_ATH11K_NSS_MESH_SUPPORT=y' >> "$OPENWRT_CONFIG"
+          else
+            echo "--> Konfiguracja wariantu STANDARD (NSS FW 12.5)"
+            printf '%s\n' \
+              'CONFIG_NSS_FIRMWARE_VERSION_12_5=y' \
+              '# CONFIG_NSS_FIRMWARE_VERSION_11_4 is not set' \
+              '# CONFIG_ATH11K_NSS_MESH_SUPPORT is not set' >> "$OPENWRT_CONFIG"
+          fi
+
+          # 3. Dopisanie deklaracji jądra TEE do config-6.18
+          KERNEL_CONFIG_TARGET=$(find ${{ github.workspace }}/openwrt/target/linux/qualcommax/ -name "config-6.18" | head -n 1)
+          if [ -n "$KERNEL_CONFIG_TARGET" ] && [ -f "$KERNEL_CONFIG_TARGET" ]; then
+            printf '%s\n' \
+              'CONFIG_TEE=m' \
+              'CONFIG_OPTEE=m' \
+              'CONFIG_QCOMTEE=m' \
+              '# CONFIG_OPTEE_INSECURE_LOAD_IMAGE is not set' >> "$KERNEL_CONFIG_TARGET"
+            echo "--> SUCCESS: Wszystkie brakujące deklaracje jądra TEE zostały dopisane do $KERNEL_CONFIG_TARGET"
+          fi
+
+          # =========================================================================
+          # 🇵🇱 SYSTEMOWE SCALENIE I18N DLA PPE-NSS (DODANIE DO RDZENIA LUCI-BASE)
+          # =========================================================================
+          SOURCE_PO_DIR="${{ github.workspace }}/builder/$DEVICE_DIR/po/pl"
+          PPE_LUCI_PO_SOURCE="$SOURCE_PO_DIR/luci-app-ppe-qos.po"
+          PPE_LUCI_APP_DIR=$(find "${{ github.workspace }}/openwrt/feeds/luci" -type d -name "luci-app-ppe-qos" | head -n 1)
+          if [ -f "$PPE_LUCI_PO_SOURCE" ]; then
+            if [ -n "$PPE_LUCI_APP_DIR" ] && [ -d "$PPE_LUCI_APP_DIR" ]; then
+              mkdir -p "$PPE_LUCI_APP_DIR/po/pl"
+              cp "$PPE_LUCI_PO_SOURCE" "$PPE_LUCI_APP_DIR/po/pl/luci-app-ppe-qos.po"
+              echo "--> SUCCESS: Dodano polskie tłumaczenie luci-app-ppe-qos do feedu LuCI"
+            else
+              echo "::warning::Nie znaleziono katalogu luci-app-ppe-qos w feedzie LuCI; pomijam tłumaczenie."
+            fi
+          fi
+
+          LUCI_BASE_PO="${{ github.workspace }}/openwrt/feeds/luci/modules/luci-base/po/pl/base.po"
+          if [ ! -f "$LUCI_BASE_PO" ]; then
+            LUCI_BASE_PO=$(find ${{ github.workspace }}/openwrt/ -path "*/luci-base/po/pl/base.po" | head -n 1)
+          fi
+
+          if [ -n "$LUCI_BASE_PO" ] && [ -f "$LUCI_BASE_PO" ]; then
+            for SOURCE_PO in "$SOURCE_PO_DIR/luci-app-ppe-qos.po" "$SOURCE_PO_DIR/luci-mod-status-nss.po"; do
+              if [ -f "$SOURCE_PO" ]; then
+                {
+                  printf '\n'
+                  awk 'BEGIN { header=1 } header && /^$/ { header=0; next } !header { print }' "$SOURCE_PO"
+                } >> "$LUCI_BASE_PO"
+                echo "--> SUCCESS: Pomyślnie scalono $(basename "$SOURCE_PO" .po) z głównym słownikiem systemowym po/pl/base.po"
+              fi
+            done
+          else
+            echo "::warning::Nie znaleziono pliku po/pl/base.po; pomijam scalanie tłumaczeń PPE-NSS."
+          fi
+
+          # Przeliczenie drzewa zależności konfiguracji
+          make -C ${{ github.workspace }}/openwrt defconfig FORCE=1
+
+      - name: Dynamically update custom OpenWrt banner info
+        working-directory: openwrt
+        run: |
+          set -euo pipefail
+
+          if [ -f scripts/getver.sh ]; then
+            OPENWRT_VERSION_RAW=$(bash scripts/getver.sh)
+          else
+            OPENWRT_VERSION_RAW=$(git rev-parse --short=10 HEAD)
+          fi
+
+          OPENWRT_VERSION="OpenWrt SNAPSHOT, ${OPENWRT_VERSION_RAW}"
+          CURRENT_BUILD_TIME=$(date -u +"%Y-%m-%d %H:%M UTC")
+
+          if [ -f files/etc/banner ]; then
+            VERSION_LINE="OpenWrt SNAPSHOT, ${OPENWRT_VERSION_RAW} (${{ matrix.variant }}, FW${{ matrix.nss_fw }})"
+            DATE_LINE="Build time: $CURRENT_BUILD_TIME"
+
+            VERSION_PADDING=$(printf '\%-74s' "$VERSION_LINE")
+            FINAL_VERSION_ROW=" | ${VERSION_PADDING}|"
+
+            DATE_PADDING=$(printf '\%-74s' "$DATE_LINE")
+            FINAL_DATE_ROW=" | ${DATE_PADDING}|"
+
+            sed -i "s#.*VERSION_PLACEHOLDER.*#$FINAL_VERSION_ROW#g" files/etc/banner
+            sed -i "s#.*DATE_PLACEHOLDER.*#$FINAL_DATE_ROW#g" files/etc/banner
+
+            echo "Successfully injected real git version and build time into ${{ matrix.variant }} banner."
+          else
+            echo "::warning::Custom banner file was not deployed by prepare-build.sh to openwrt/files/etc/banner"
+            VERSION_LINE="OpenWrt SNAPSHOT"
+            FINAL_VERSION_ROW=""
+            DATE_LINE=""
+            FINAL_DATE_ROW=""
+          fi
+
+          TARGET_RELEASE_FILE="package/base-files/files/etc/openwrt_release"
+          DISTRIB_DESCRIPTION="${OPENWRT_VERSION} (${{ matrix.variant }} [NSS FW${{ matrix.nss_fw }}] build by @Payti)"
+          if [ -f "$TARGET_RELEASE_FILE" ]; then
+            sed -i '/DISTRIB_DESCRIPTION=/d' "$TARGET_RELEASE_FILE" || true
+            echo "DISTRIB_DESCRIPTION='${DISTRIB_DESCRIPTION}'" >> "$TARGET_RELEASE_FILE"
+          fi
+
+          echo "=================================================="
+          echo "VARIANT:                ${{ matrix.variant }} (NSS FW${{ matrix.nss_fw }})"
+          echo "OPENWRT_VERSION:        $OPENWRT_VERSION"
+          echo "CURRENT_BUILD_TIME:     $CURRENT_BUILD_TIME"
+          echo "VERSION_LINE:           ${VERSION_LINE:-}"
+          echo "DATE_LINE:              ${DATE_LINE:-}"
+          echo "=================================================="
+
+      - name: Set reproducible-build env
+        working-directory: openwrt
+        run: |
+          set -euo pipefail
+          {
+            echo "SOURCE_DATE_EPOCH=$(git show -s --format=%ct HEAD)"
+            echo "TZ=UTC"
+            echo "LC_ALL=C"
+            echo "KBUILD_BUILD_USER=builder"
+            echo "KBUILD_BUILD_HOST=github"
+          } >>"$GITHUB_ENV"
+
+      - name: Download sources
+        working-directory: openwrt
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            make download -j"$(nproc)" V=s && break
+            echo "Download attempt $attempt failed; retrying..."
+            sleep 5
+          done
+
+      - name: Build
+        working-directory: openwrt
+        run: |
+          set -euo pipefail
+          make -j"$(nproc)" || make -j1 V=s
+
+      - name: Pack APK Packages
+        working-directory: openwrt
+        run: |
+          echo "### Pakowanie skompilowanych pakietów .apk (${{ matrix.variant }}) ###"
+          if [ -d "bin/packages" ]; then
+            tar -czf bin/targets/${{ env.TARGET }}/compiled_packages.tar.gz -C bin packages
+            echo "-> Pakiety zostały pomyślnie spakowane do compiled_packages.tar.gz"
+          else
+            echo "-> OSTRZEŻENIE: Nie znaleziono katalogu bin/packages!"
+          fi
+
+      - name: Publish release (${{ matrix.variant }})
+        id: release
+        env:
+          UPSTREAM_SHA: ${{ needs.check.outputs.upstream_sha }}
+          NSS_SHA: ${{ needs.check.outputs.nss_sha }}
+        run: |
+          set -euo pipefail
+          date=$(date -u +%F)
+          timestamp=$(date -u +%Y%m%dT%H%M%SZ)
+          tag_name="${{ matrix.variant }}-${timestamp}-${GITHUB_RUN_ID}-offload"
+          echo "release_tag=$tag_name" >>"$GITHUB_OUTPUT"
+
+          {
+            echo "## OpenWrt Build — ${{ matrix.title_label }}"
+            echo "- **Date**: $date"
+            echo "- **Variant**: \`${{ matrix.variant }}\`"
+            echo "- **NSS Firmware**: \`${{ matrix.nss_fw }}\`"
+            echo "- **802.11s NSS Mesh Offload**: \`${{ matrix.mesh_support }}\`"
+            echo "- **Device**: \`${{ env.DEVICE }}\`"
+            echo "- **Target**: \`${{ env.TARGET }}\`"
+            echo "- **Upstream**: \`${{ env.UPSTREAM_REPO }}@${UPSTREAM_SHA}\` (branch \`${{ env.UPSTREAM_REF }}\`)"
+            echo "- **NSS Packages**: \`${{ env.NSS_REPO }}@${NSS_SHA}\` (branch \`${{ env.NSS_REF }}\`)"
+            echo "- **Trigger**: \`${GITHUB_EVENT_NAME}\`"
+            echo "- **Compiled by**: @Payti"
+          } >release_notes.md
+
+          mapfile -t assets < <(find "openwrt/bin/targets/${TARGET}/" -type f -not -path "*/packages/*")
+
+          for asset in "${assets[@]}"; do
+            dir=$(dirname "$asset")
+            base=$(basename "$asset")
+            # Nadaj czytelny prefiks wariantu (ppe-nss-... lub ppe-nss-mesh-...)
+            clean_base="${base#ppe-nss-mesh-}"
+            clean_base="${clean_base#ppe-nss-}"
+            clean_base="${clean_base#ppe-}"
+            mv "$asset" "$dir/${{ matrix.variant }}-$clean_base"
+          done
+
+          mapfile -t renamed_assets < <(find "openwrt/bin/targets/${TARGET}/" -type f -not -path "*/packages/*")
+
+          gh release create "$tag_name" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "OpenWrt ${{ matrix.title_label }}$date" \
+            --notes-file release_notes.md \
+            "${renamed_assets[@]}"
+
+          {
+            echo "## Release (${{ matrix.variant }})"
+            echo "- tag: \`${tag_name}\`"
+            echo "- NSS FW: \`${{ matrix.nss_fw }}\`"
+            echo "- assets: ${#renamed_assets[@]}"
+          } >>"$GITHUB_STEP_SUMMARY"
+
+  prune:
+    name: Prune old releases
+    needs: build
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Prune
+        run: bash scripts/prune-releases.sh

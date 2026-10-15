@@ -1,0 +1,30 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: luci-mod-status-nss\n"
+"Language: pl\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Thermal"
+msgstr "Termika"
+
+msgid "Core"
+msgstr "Core"
+
+msgid "CPU"
+msgstr "CPU"
+
+msgid "WiFi"
+msgstr "WiFi"
+
+msgid "min"
+msgstr "min"
+
+msgid "avg"
+msgstr "avg"
+
+msgid "max"
+msgstr "max"
+
+msgid "No thermal readings"
+msgstr "Brak odczytów temperatury"

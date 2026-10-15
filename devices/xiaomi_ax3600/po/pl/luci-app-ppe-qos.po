@@ -1,0 +1,150 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: luci-app-ppe-qos\n"
+"Language: pl\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "PPE QoS"
+msgstr "PPE QoS"
+
+msgid "PPE Hardware QoS"
+msgstr "Sprzętowe QoS PPE"
+
+msgid "Which egress queue of the switch a flow rides. A marking rule puts a DSCP on the flow, a map turns that DSCP into an internal priority, and the priority picks the queue: priorities 4 and up are served past the bulk queue of a shaped port, so marked traffic keeps idle latency while the bulk queue stays deep enough for full throughput. Marking is done by the switch itself, so it reaches flows the PPE has offloaded. Shaper rates and the bulk queue depth belong to SQM (hw_ppe.qos)."
+msgstr "Określa, z której kolejki wyjściowej przełącznika korzysta dany strumień. Reguła znakowania ustawia DSCP dla strumienia, mapa zamienia DSCP na wewnętrzny priorytet, a priorytet wybiera kolejkę: priorytety od 4 wzwyż są obsługiwane poza kolejką masową kształtowanego portu, dzięki czemu oznaczony ruch zachowuje niskie opóźnienia, a kolejka masowa pozostaje wystarczająco głęboka dla pełnej przepustowości. Znakowanie wykonuje sam przełącznik, więc obejmuje również strumienie przekazane do sprzętowego offloadu PPE. Prędkość kształtowania i głębokość kolejki masowej należą do SQM (hw_ppe.qos)."
+
+msgid "Global"
+msgstr "Globalne"
+
+msgid "Enable marking rules"
+msgstr "Włącz reguły znakowania"
+
+msgid "Turns the rules below off without deleting them. The DSCP maps and the small-packet priority stay in effect either way."
+msgstr "Wyłącza poniższe reguły bez ich usuwania. Mapy DSCP i priorytet małych pakietów pozostają aktywne niezależnie od tego ustawienia."
+
+msgid "Small packet: maximum L3 length"
+msgstr "Mały pakiet: maksymalna długość L3"
+
+msgid "Frames up to this IP length take the priority below whatever their marking: ACKs, handshakes, DNS, VoIP and game traffic jump the bulk queue. 0 disables. A value just under the MTU means \"everything that is not a full-size bulk frame\"."
+msgstr "Ramki o długości IP do tej wartości otrzymują poniższy priorytet niezależnie od oznaczenia: pakiety ACK, uzgadnianie połączeń, DNS, VoIP i ruch gier omijają kolejkę masową. 0 wyłącza tę funkcję. Wartość tuż poniżej MTU oznacza \"wszystko, co nie jest pełnowymiarową ramką masową\"."
+
+msgid "Small packet: priority"
+msgstr "Mały pakiet: priorytet"
+
+msgid "Priority %d (served past the bulk queue)"
+msgstr "Priorytet %d (obsługiwany poza kolejką masową)"
+
+msgid "Priority %d (bulk queue)"
+msgstr "Priorytet %d (kolejka masowa)"
+
+msgid "Uplink switch port"
+msgstr "Port uplink przełącznika"
+
+msgid "Left empty this is taken from the WAN interface, with any VLAN id stripped, since the switch knows only the port. Set it if that guess is wrong."
+msgstr "Pozostawienie pustego pola powoduje pobranie portu z interfejsu WAN po usunięciu identyfikatora VLAN, ponieważ przełącznik zna tylko port. Ustaw wartość ręcznie, jeśli to rozpoznanie jest błędne."
+
+msgid "auto"
+msgstr "automatycznie"
+
+msgid "Marking rules"
+msgstr "Reguły znakowania"
+
+msgid "Each rule is applied in both directions: as written on the ports your clients sit behind, and mirrored on the uplink port so the returning half of the same connection is marked too. Ports may be single or a range (5000-5500), and several may be listed. The switch matches addresses and ports only - there is no matching by domain name."
+msgstr "Każda reguła jest stosowana w obu kierunkach: zgodnie z konfiguracją na portach, za którymi znajdują się klienci, oraz jako odbicie na porcie uplink, aby oznaczyć również ruch powrotny tego samego połączenia. Port może być pojedynczy lub stanowić zakres (5000-5500), można też podać kilka portów. Przełącznik dopasowuje tylko adresy i porty, bez dopasowywania nazw domen."
+
+msgid "Enable"
+msgstr "Włącz"
+
+msgid "Name"
+msgstr "Nazwa"
+
+msgid "TCP and UDP"
+msgstr "TCP i UDP"
+
+msgid "TCP"
+msgstr "TCP"
+
+msgid "UDP"
+msgstr "UDP"
+
+msgid "Source address"
+msgstr "Adres źródłowy"
+
+msgid "Optional. Addresses or CIDRs, space separated; IPv4 and IPv6 may be mixed."
+msgstr "Opcjonalne. Adresy lub sieci CIDR oddzielone spacjami; można łączyć IPv4 i IPv6."
+
+msgid "Destination address"
+msgstr "Adres docelowy"
+
+msgid "Optional, same syntax as the source address."
+msgstr "Opcjonalne, składnia taka sama jak dla adresu źródłowego."
+
+msgid "Source port"
+msgstr "Port źródłowy"
+
+msgid "Optional. A port, a range, or several separated by spaces."
+msgstr "Opcjonalne. Pojedynczy port, zakres lub kilka portów oddzielonych spacjami."
+
+msgid "Destination port"
+msgstr "Port docelowy"
+
+msgid "Optional, same syntax as the source port. This is the usual way to name a service."
+msgstr "Opcjonalne, składnia taka sama jak dla portu źródłowego. Jest to typowy sposób wskazania usługi."
+
+msgid "Class"
+msgstr "Klasa"
+
+msgid "A class only changes the queue if the map below turns it into a priority of 4 or more. It also reaches Wi-Fi, which reads the DSCP for its own access categories."
+msgstr "Klasa zmienia kolejkę tylko wtedy, gdy poniższa mapa zamieni ją na priorytet 4 lub wyższy. Trafia również do Wi-Fi, które odczytuje DSCP na potrzeby własnych kategorii dostępu."
+
+msgid "CS0 - best effort"
+msgstr "CS0 - najlepszy wysiłek"
+
+msgid "CS1 - scavenger / bulk"
+msgstr "CS1 - tło / masowe"
+
+msgid "CS3 - broadcast video"
+msgstr "CS3 - transmisja wideo"
+
+msgid "AF31 - multimedia streaming"
+msgstr "AF31 - strumieniowanie multimediów"
+
+msgid "CS4 - real-time interactive (games)"
+msgstr "CS4 - interaktywne w czasie rzeczywistym (gry)"
+
+msgid "AF41 - multimedia conferencing (calls)"
+msgstr "AF41 - konferencje multimedialne (rozmowy)"
+
+msgid "CS5 - signalling, DNS"
+msgstr "CS5 - sygnalizacja, DNS"
+
+msgid "EF - voice bearer"
+msgstr "EF - transmisja głosu"
+
+msgid "CS6 - network control"
+msgstr "CS6 - sterowanie siecią"
+
+msgid "DSCP to priority"
+msgstr "DSCP na priorytet"
+
+msgid "What a mark is worth once the switch reads it. Applied with dcb app on every switch port, so it classifies traffic marked by these rules and traffic that arrives already marked alike. Anything unlisted stays at priority 0 and rides the bulk queue."
+msgstr "Wartość oznaczenia odczytanego przez przełącznik. Stosowane poleceniem dcb app na każdym porcie przełącznika, dzięki czemu klasyfikuje ruch oznaczony tymi regułami oraz ruch, który już przychodzi z takim oznaczeniem. Wszystko, czego nie wymieniono, pozostaje z priorytetem 0 i korzysta z kolejki masowej."
+
+msgid "DSCP"
+msgstr "DSCP"
+
+msgid "32 (CS4 - games)"
+msgstr "32 (CS4 - gry)"
+
+msgid "34 (AF41 - calls)"
+msgstr "34 (AF41 - rozmowy)"
+
+msgid "40 (CS5 - signalling, DNS)"
+msgstr "40 (CS5 - sygnalizacja, DNS)"
+
+msgid "46 (EF - voice)"
+msgstr "46 (EF - głos)"
+
+msgid "48 (CS6 - control)"
+msgstr "48 (CS6 - sterowanie)"

@@ -1,0 +1,24 @@
+#!/bin/sh
+
+case "$1" in
+    list)
+        echo '{ "read": {} }'
+        ;;
+    call)
+        # Szybkie skanowanie stref termicznych i budowanie JSON-a
+        thermals=""
+        for d in /sys/class/thermal/thermal_zone*; do
+            if [ -f "$d/type" ] && [ -f "$d/temp" ]; then
+                type=$(cat "$d/type" 2>/dev/null)
+                temp=$(cat "$d/temp" 2>/dev/null)
+                if [ -n "$type" ] && [ -n "$temp" ]; then
+                    thermals="${thermals}{\"type\":\"${type}\",\"temp\":${temp}},"
+                fi
+            fi
+        done
+        # Usunięcie przecinka na końcu
+        thermals="${thermals%,}"
+        
+        echo "{\"thermal\":[$thermals]}"
+        ;;
+esac
