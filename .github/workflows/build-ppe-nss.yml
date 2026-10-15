@@ -386,14 +386,14 @@ jobs:
           fi
 
           TARGET_RELEASE_FILE="package/base-files/files/etc/openwrt_release"
-          DISTRIB_DESCRIPTION="${OPENWRT_VERSION} (${{ matrix.variant }} [NSS FW${{ matrix.nss_fw }}] build by @Payti)"
+          DISTRIB_DESCRIPTION="${OPENWRT_VERSION} (${{ matrix.variant }} [NSS FW ${{ matrix.nss_fw }}] build by @Payti)"
           if [ -f "$TARGET_RELEASE_FILE" ]; then
             sed -i '/DISTRIB_DESCRIPTION=/d' "$TARGET_RELEASE_FILE" || true
             echo "DISTRIB_DESCRIPTION='${DISTRIB_DESCRIPTION}'" >> "$TARGET_RELEASE_FILE"
           fi
 
           echo "=================================================="
-          echo "VARIANT:                ${{ matrix.variant }} (NSS FW${{ matrix.nss_fw }})"
+          echo "VARIANT:                ${{ matrix.variant }} (NSS FW ${{ matrix.nss_fw }})"
           echo "OPENWRT_VERSION:        $OPENWRT_VERSION"
           echo "CURRENT_BUILD_TIME:     $CURRENT_BUILD_TIME"
           echo "VERSION_LINE:           ${VERSION_LINE:-}"
