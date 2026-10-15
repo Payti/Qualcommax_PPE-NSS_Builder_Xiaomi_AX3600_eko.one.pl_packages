@@ -30,17 +30,17 @@ echo "---------------------------------------------"
 
 echo "=== [2/4] Nakładanie łatek na drzewo OpenWrt (jeśli istnieją) ==="
 shopt -s nullglob
+# Unikalna lista katalogów dla drzewa głównego OpenWrt
 for patch_dir in \
   "${BUILDER_REPO}/patches" \
   "${BUILDER_REPO}/patches/openwrt" \
-  "${BUILDER_REPO}/patches/feeds/ppe-nss" \
   "${BUILDER_REPO}/patches/tree/ppe" \
   "${BUILDER_REPO}/patches/tree/${VARIANT}" \
   "${BUILDER_REPO}/patches/${VARIANT}"; do
   if [ -d "$patch_dir" ]; then
     for p in "$patch_dir"/*.patch; do
       if patch -p1 -d "$OPENWRT_DIR" --dry-run --forward <"$p" >/dev/null 2>&1; then
-        echo "--> Applying OpenWrt patch: $(basename "$p") (from $(basename "$patch_dir"))"
+        echo "--> Applying OpenWrt patch: $(basename "$p") (from ${patch_dir#"${BUILDER_REPO}/"})"
         patch -p1 -d "$OPENWRT_DIR" --forward <"$p"
       else
         echo "--> Skipping OpenWrt patch: $(basename "$p") (already applied or not applicable)"
@@ -77,11 +77,12 @@ touch "${OPENWRT_DIR}/.config"
 if [ -f "${BUILDER_REPO}/devices/common/config" ]; then
   cat "${BUILDER_REPO}/devices/common/config" >> "${OPENWRT_DIR}/.config"
   echo "" >> "${OPENWRT_DIR}/.config"
+  echo "--> Dołączono wspólny plik devices/common/config"
 fi
 
 if [ -f "${BUILDER_REPO}/${DEVICE_DIR}/config" ]; then
   cat "${BUILDER_REPO}/${DEVICE_DIR}/config" >> "${OPENWRT_DIR}/.config"
-  echo "--> Bazowy plik .config z ${DEVICE_DIR}/config został skopiowany do ${OPENWRT_DIR}/.config"
+  echo "--> Bazowy plik .config z ${DEVICE_DIR}/config został dopisany do ${OPENWRT_DIR}/.config"
 else
   echo "::error::Nie znaleziono pliku ${BUILDER_REPO}/${DEVICE_DIR}/config!"
   exit 1
