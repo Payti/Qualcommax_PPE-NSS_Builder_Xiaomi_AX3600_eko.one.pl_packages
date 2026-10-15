@@ -87,7 +87,7 @@ apply_patch_safely() {
   elif tr -d '\r' <"$patch_file" | patch -p1 -d "$target_dir" --dry-run --reverse -F 3 >/dev/null 2>&1; then
     log_info "Skipping ${label} patch: ${patch_name} (already applied in source)"
   else
-    log_error "Łatka ${patch_name} nie pasuje do ${label} (${target_dir})! Szczegóły konfliktu:"
+    log_warn "Łatka ${patch_name} nie pasuje do ${label} (${target_dir})! Szczegóły konfliktu:"
     tr -d '\r' <"$patch_file" | patch -p1 -d "$target_dir" --dry-run --forward -F 3 || true
     log_warn "Łatka ${patch_name} została pominięta (plik już istnieje lub dotyczy innej wersji jądra)."
   fi
