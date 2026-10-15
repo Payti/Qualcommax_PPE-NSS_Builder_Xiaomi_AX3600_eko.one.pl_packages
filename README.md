@@ -2,7 +2,7 @@
 
 ### Prebuilt OpenWrt firmware with Qualcomm PPE-NSS hardware offload for Xiaomi AX3600 (with eko.one.pl packages & English + Polish LuCI)
 
-[![Build PPE-NSS](https://img.shields.io/github/actions/workflow/status/Payti/Qualcommax_PPE-NSS_Builder_Xiaomi_AX3600_eko.one.pl_packages/build-ppe.yml?branch=main&style=flat-square&logo=github&label=Build%20PPE-NSS)](https://github.com/Payti/Qualcommax_PPE-NSS_Builder_Xiaomi_AX3600_eko.one.pl_packages/actions/workflows/build-ppe-nss.yml)
+[![Build PPE-NSS](https://img.shields.io/github/actions/workflow/status/Payti/Qualcommax_PPE-NSS_Builder_Xiaomi_AX3600_eko.one.pl_packages/build-ppe-nss.yml?branch=main&style=flat-square&logo=github&label=Build%20PPE-NSS)](https://github.com/Payti/Qualcommax_PPE-NSS_Builder_Xiaomi_AX3600_eko.one.pl_packages/actions/workflows/build-ppe-nss.yml)
 [![License](https://img.shields.io/github/license/Payti/Qualcommax_PPE-NSS_Builder_Xiaomi_AX3600_eko.one.pl_packages?style=flat-square&label=License)](LICENSE)
 [![Last Commit](https://img.shields.io/github/last-commit/Payti/Qualcommax_PPE-NSS_Builder_Xiaomi_AX3600_eko.one.pl_packages?style=flat-square&label=Last%20Commit)](https://github.com/Payti/Qualcommax_PPE-NSS_Builder_Xiaomi_AX3600_eko.one.pl_packages/commits/main)
 [![Releases](https://img.shields.io/github/v/release/Payti/Qualcommax_PPE-NSS_Builder_Xiaomi_AX3600_eko.one.pl_packages?include_prereleases&style=flat-square&label=Latest%20Release)](https://github.com/Payti/Qualcommax_PPE-NSS_Builder_Xiaomi_AX3600_eko.one.pl_packages/releases)
