@@ -364,7 +364,7 @@ jobs:
           CURRENT_BUILD_TIME=$(date -u +"%Y-%m-%d %H:%M UTC")
 
           if [ -f files/etc/banner ]; then
-            VERSION_LINE="OpenWrt SNAPSHOT, ${OPENWRT_VERSION_RAW} (${{ matrix.variant }}, FW${{ matrix.nss_fw }})"
+            VERSION_LINE="OpenWrt SNAPSHOT, ${OPENWRT_VERSION_RAW} (${{ matrix.variant }}, FW ${{ matrix.nss_fw }})"
             DATE_LINE="Build time: $CURRENT_BUILD_TIME"
 
             VERSION_PADDING=$(printf '\%-74s' "$VERSION_LINE")
