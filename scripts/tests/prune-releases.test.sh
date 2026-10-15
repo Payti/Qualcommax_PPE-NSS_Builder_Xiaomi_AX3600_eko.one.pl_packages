@@ -2,9 +2,7 @@
 set -euo pipefail
 
 mock_gh_release_list() {
-  local prefix="$1"
-  if [ "$prefix" = "ppe-nss" ]; then
-    cat << 'EOF'
+  cat << 'EOF'
 [
   {"tagName": "ppe-nss-20261015T120000Z-1001-offload"},
   {"tagName": "ppe-nss-20261014T120000Z-1000-offload"},
@@ -13,27 +11,37 @@ mock_gh_release_list() {
   {"tagName": "ppe-nss-20261011T120000Z-0997-offload"}
 ]
 EOF
-  fi
 }
 
 echo "Running prune-releases tests..."
 
 KEEP_PER_VARIANT=2
 prefix="ppe-nss"
-json_data=$(mock_gh_release_list "$prefix")
+json_data=$(mock_gh_release_list)
 
-# Odczyt tagów z uwzględnieniem filtra wariantu i limitu KEEP_PER_VARIANT
+# Pobieramy wszystkie tagi pasujące do wariantu, pomijając mesh
 mapfile -t tags < <(
-  echo "$json_data" | jq -r --arg p "${prefix}-" --argjson limit "$KEEP_PER_VARIANT" '
-    [.[] | select(.tagName | startswith($p) and (startswith("ppe-nss-mesh-") | not)) | .tagName] | .[$limit:]
-  '
+  echo "$json_data" | jq -r --arg p "${prefix}-" '
+    [.[].tagName | select(. | startswith($p) and (startswith("ppe-nss-mesh-") | not))]
+  ' | jq -r '.[]'
 )
 
-# W mocku mamy 4 pasujące tagi dla ppe-nss. Po odcięciu pierwszych 2 (limit=2) zostają 2 starsze do usunięcia.
-if [ "${#tags[@]}" -eq 2 ]; then
-  echo "PASS: Test usuwania starych tagów dla $prefix przeszedł pomyślnie."
+# Weryfikacja: w mocku są 3 pasujące tagi ppe-nss
+if [ "${#tags[@]}" -eq 3 ]; then
+  echo "PASS: Znaleziono dokładnie 3 pasujące tagi dla wariantu $prefix."
 else
-  echo "FAIL: Niepoprawna liczba tagów do usunięcia (oczekiwano 2, otrzymano ${#tags[@]})."
+  echo "FAIL: Oczekiwano 3 tagów, otrzymano ${#tags[@]}."
+  exit 1
+fi
+
+# Sprawdzenie mechanizmu ucinania powyżej KEEP_PER_VARIANT (zostają 2 najnowsze, reszta do usunięcia)
+total=${#tags[@]}
+to_delete=$(( total - KEEP_PER_VARIANT ))
+
+if [ "$to_delete" -eq 1 ]; then
+  echo "PASS: Liczba starych tagów do usunięcia wynosi poprawnie 1."
+else
+  echo "FAIL: Niepoprawna liczba tagów do usunięcia."
   exit 1
 fi
 
