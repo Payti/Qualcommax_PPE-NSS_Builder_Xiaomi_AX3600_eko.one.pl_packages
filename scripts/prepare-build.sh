@@ -22,7 +22,7 @@ COMMON_DIR="${BUILDER_REPO}/devices/${COMMON:-common}"
 
 # Kompatybilność wsteczna: obsługa zarówno DEVICE_DIR="devices/xiaomi_ax3600", jak i DEVICE="xiaomi_ax3600"
 if [[ -n "${DEVICE_DIR:-}" ]]; then
-  DEVICE_PATH="${BUILDER_REPO}/${DEVICE_DIR#${BUILDER_REPO}/}"
+  DEVICE_PATH="${BUILDER_REPO}/${DEVICE_DIR#"${BUILDER_REPO}"/}"
 elif [[ -n "${DEVICE:-}" ]]; then
   DEVICE_PATH="${BUILDER_REPO}/devices/${DEVICE}"
 else
@@ -62,8 +62,7 @@ echo "--- Aktualna zawartość feeds.conf ---"
 cat "$FEEDS_FILE"
 echo "-------------------------------------"
 
-# Jeśli zmienna RUN_FEEDS_IN_PREPARE=1 (domyślnie 0, gdy feeds update jest w .yml),
-# skrypt sam pobierze i zainstaluje feedy w tym miejscu.
+# Jeśli zmienna RUN_FEEDS_IN_PREPARE=1, skrypt sam pobierze i zainstaluje feedy w tym miejscu.
 if [[ "${RUN_FEEDS_IN_PREPARE:-0}" == "1" ]]; then
   log_info "Aktualizacja i instalacja wszystkich feedów (RUN_FEEDS_IN_PREPARE=1)..."
   ./scripts/feeds update -a
@@ -95,7 +94,7 @@ apply_patch_safely() {
 }
 
 # 2a. Łatki na główne drzewo OpenWrt (z deduplikacją katalogów)
-declare -A visited_dirs
+declare -A visited_dirs=()
 for patch_dir in \
   "${BUILDER_REPO}/patches" \
   "${BUILDER_REPO}/patches/openwrt" \
@@ -108,7 +107,7 @@ for patch_dir in \
     [[ -n "${visited_dirs[$real_dir]:-}" ]] && continue
     visited_dirs[$real_dir]=1
 
-    rel_dir="${patch_dir#"${BUILDER_REPO}/"}"
+    rel_dir="${patch_dir#"${BUILDER_REPO}"/}"
     for p in "$patch_dir"/*.patch; do
       apply_patch_safely "$p" "$OPENWRT_DIR" "OpenWrt (${rel_dir})"
     done
@@ -116,13 +115,17 @@ for patch_dir in \
 done
 
 # 2b. Łatki na pobrane feedy (wykona się automatycznie, jeśli katalog feeds/ już istnieje)
-for feed_variant_dir in "${BUILDER_REPO}/patches/feeds/ppe-nss" "${BUILDER_REPO}/patches/feeds/${VARIANT}"; do
+for feed_variant_dir in \
+  "${BUILDER_REPO}/patches/feeds/ppe" \
+  "${BUILDER_REPO}/patches/feeds/ppe-nss" \
+  "${BUILDER_REPO}/patches/feeds/${VARIANT}"; do
+
   if [[ -d "$feed_variant_dir" ]]; then
     real_fdir="$(cd "$feed_variant_dir" && pwd)"
     [[ -n "${visited_dirs[$real_fdir]:-}" ]] && continue
     visited_dirs[$real_fdir]=1
 
-    # Struktura Juliusa: patches/feeds/<variant>/<feed_name>/*.patch
+    # Struktura: patches/feeds/<variant>/<feed_name>/*.patch
     for p in "$feed_variant_dir"/*/*.patch; do
       feed_name="$(basename "$(dirname "$p")")"
       target_feed_dir="${OPENWRT_DIR}/feeds/${feed_name}"
@@ -149,7 +152,7 @@ for src_files in \
 
   if [[ -d "$src_files" ]]; then
     cp -rfT "$src_files" "${OPENWRT_DIR}/files"
-    log_info "Skopiowano pliki overlay z: ${src_files#"${BUILDER_REPO}/"}"
+    log_info "Skopiowano pliki overlay z: ${src_files#"${BUILDER_REPO}"/}"
   fi
 done
 
@@ -173,11 +176,11 @@ touch "${OPENWRT_DIR}/.config"
 CONFIGS=()
 if [[ -f "${COMMON_DIR}/config" ]]; then
   CONFIGS+=("${COMMON_DIR}/config")
-  log_info "Dołączono wspólny profil: ${COMMON_DIR#"${BUILDER_REPO}/"}/config"
+  log_info "Dołączono wspólny profil: ${COMMON_DIR#"${BUILDER_REPO}"/}/config"
 fi
 
 CONFIGS+=("${DEVICE_PATH}/config")
-log_info "Dołączono profil urządzenia: ${DEVICE_PATH#"${BUILDER_REPO}/"}/config"
+log_info "Dołączono profil urządzenia: ${DEVICE_PATH#"${BUILDER_REPO}"/}/config"
 
 if [[ -n "$CONFIG_FRAGMENT" ]]; then
   [[ -f "${BUILDER_REPO}/${CONFIG_FRAGMENT}" ]] || log_die "Nie znaleziono CONFIG_FRAGMENT: ${CONFIG_FRAGMENT}"
@@ -206,8 +209,8 @@ if [[ -n "${FEEDS:-}" ]]; then
 fi
 echo "# CONFIG_FEED_luci_extra is not set" >> "${OPENWRT_DIR}/.config"
 
-# Weryfikacja symboli po 'make defconfig' (uruchamia się automatycznie, jeśli feedy zostały już zainstalowane)
-if [[ -d "${OPENWRT_DIR}/feeds" && -f "${OPENWRT_DIR}/tmp/.packageinfo" ]] || [[ "${RUN_DEFCONFIG_CHECK:-0}" == "1" ]]; then
+# Weryfikacja symboli po 'make defconfig' (gdy włączono RUN_DEFCONFIG_CHECK=1)
+if [[ "${RUN_DEFCONFIG_CHECK:-0}" == "1" ]]; then
   log_info "Uruchamiam 'make defconfig' oraz weryfikację zachowanych symboli..."
   make defconfig
 
