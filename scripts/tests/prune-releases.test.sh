@@ -13,14 +13,6 @@ mock_gh_release_list() {
   {"tagName": "ppe-nss-20261011T120000Z-0997-offload"}
 ]
 EOF
-  else
-    cat << 'EOF'
-[
-  {"tagName": "ppe-nss-mesh-20261015T120000Z-2001-offload"},
-  {"tagName": "ppe-nss-mesh-20261014T120000Z-2000-offload"},
-  {"tagName": "ppe-nss-mesh-20261013T120000Z-1999-offload"}
-]
-EOF
   fi
 }
 
@@ -30,17 +22,18 @@ KEEP_PER_VARIANT=2
 prefix="ppe-nss"
 json_data=$(mock_gh_release_list "$prefix")
 
-# Odczyt tagów zgodny z logiką ze skryptu prune-releases.sh i używający KEEP_PER_VARIANT
+# Odczyt tagów z uwzględnieniem filtra wariantu i limitu KEEP_PER_VARIANT
 mapfile -t tags < <(
   echo "$json_data" | jq -r --arg p "${prefix}-" --argjson limit "$KEEP_PER_VARIANT" '
-    [.[] | select(.tagName | startswith($p) and (startswith("ppe-nss-mesh-") | not)) | .tagName] | .[0:$limit]
+    [.[] | select(.tagName | startswith($p) and (startswith("ppe-nss-mesh-") | not)) | .tagName] | .[$limit:]
   '
 )
 
+# W mocku mamy 4 pasujące tagi dla ppe-nss. Po odcięciu pierwszych 2 (limit=2) zostają 2 starsze do usunięcia.
 if [ "${#tags[@]}" -eq 2 ]; then
-  echo "PASS: Filtrowanie i limit KEEP_PER_VARIANT ($KEEP_PER_VARIANT) dla $prefix działają poprawnie."
+  echo "PASS: Test usuwania starych tagów dla $prefix przeszedł pomyślnie."
 else
-  echo "FAIL: Niepoprawna liczba odfiltrowanych tagów."
+  echo "FAIL: Niepoprawna liczba tagów do usunięcia (oczekiwano 2, otrzymano ${#tags[@]})."
   exit 1
 fi
 

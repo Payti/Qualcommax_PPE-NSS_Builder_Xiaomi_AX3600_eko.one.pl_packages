@@ -506,4 +506,3 @@ jobs:
       - uses: actions/checkout@v7
       - name: Prune
         run: bash scripts/prune-releases.sh
-        
