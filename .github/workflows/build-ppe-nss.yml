@@ -18,7 +18,7 @@ on:
     branches: [main]
     paths:
       - 'devices/**'
-      - 'patches/feeds/ppe-nss**'
+      - 'patches/**'
       - 'scripts/**'
       - '.github/workflows/build*.yml'
   schedule:
@@ -83,13 +83,14 @@ jobs:
           - variant: ppe-nss
             nss_fw: "12.5"
             mesh_support: "no"
-            title_label: "PPE-NSS (NSS FW 12.5)"
+            title_label: "PPE-NSS (NSS FW 12.5) "
           - variant: ppe-nss-mesh
             nss_fw: "11.4"
             mesh_support: "yes"
-            title_label: "PPE-NSS MESH (NSS FW 11.4)"
+            title_label: "PPE-NSS MESH (NSS FW 11.4) "
     env:
       GH_TOKEN: ${{ github.token }}
+      VARIANT: ${{ matrix.variant }}
       BUILD_VARIANT: ${{ matrix.variant }}
       NSS_FW_VERSION: ${{ matrix.nss_fw }}
     steps:
@@ -129,48 +130,28 @@ jobs:
         with:
           path: builder
 
-      - name: Prepare build environment
+      - name: Prepare build environment (Feeds, Tree & Feed Patches, Overlay, Base Config)
         env:
           OPENWRT_DIR: ${{ github.workspace }}/openwrt
           BUILDER_REPO: ${{ github.workspace }}/builder
           NSS_SHA: ${{ needs.check.outputs.nss_sha }}
-        run: bash builder/scripts/prepare-build.sh
+          RUN_FEEDS_IN_PREPARE: "1"
+        run: |
+          chmod +x builder/scripts/prepare-build.sh
+          bash builder/scripts/prepare-build.sh
 
-      - name: Update and install feeds + disable broken packages + patch feeds
-        working-directory: openwrt
+      # KROK B: Usunięcie zepsutych pakietów, konfiguracja wariantu (12.5 vs 11.4 Mesh), TEE, i18n oraz defconfig
+      - name: Finalize feeds, Polish i18n, TEE and variant config (${{ matrix.variant }})
         run: |
           set -euo pipefail
-          ./scripts/feeds update -a
-          ./scripts/feeds install -a
+          OPENWRT_DIR="${{ github.workspace }}/openwrt"
+          OPENWRT_CONFIG="${OPENWRT_DIR}/.config"
+          DEVICE_CONFIG="${{ github.workspace }}/builder/${{ env.DEVICE_DIR }}/config"
 
           echo "### Usuwanie pakietów dahdi-linux, rtl8812au-ct, xdp-tools ponieważ się nie kompilują! ###"
-          rm -rf package/feeds/telephony/dahdi-linux
-          rm -rf package/kernel/rtl8812au-ct
-          rm -rf package/network/utils/xdp-tools
-
-          # 🛠️ AUTOMATYCZNA PĘTLA PATCHUJĄCA FEEDY (obsługuje katalogi ppe oraz ppe-nss)
-          shopt -s nullglob
-          for patch_dir in "${{ github.workspace }}/builder/patches/feeds/ppe" "${{ github.workspace }}/builder/patches/feeds/ppe-nss"; do
-            for p in "$patch_dir"/*/*.patch; do
-              feed="feeds/$(basename "$(dirname "$p")")"
-              if [ -d "$feed" ]; then
-                if patch -p1 -d "$feed" --dry-run --forward <"$p" >/dev/null 2>&1; then
-                  echo "--> Patching $feed with $(basename "$p")"
-                  patch -p1 -d "$feed" --forward <"$p"
-                else
-                  echo "--> Skipping $(basename "$p") (already applied or not applicable)"
-                fi
-              fi
-            done
-          done
-          shopt -u nullglob
-
-      # KROK B: Dynamiczne ustawianie pakietów dodatkowych, wersji NSS FW (12.5 vs 11.4 Mesh) oraz i18n
-      - name: Tweak config for ${{ matrix.variant }} (NSS FW ${{ matrix.nss_fw }}) and Polish i18n
-        run: |
-          set -euo pipefail
-          OPENWRT_CONFIG="${{ github.workspace }}/openwrt/.config"
-          DEVICE_CONFIG="builder/${{ env.DEVICE_DIR }}/config"
+          rm -rf "${OPENWRT_DIR}/package/feeds/telephony/dahdi-linux"
+          rm -rf "${OPENWRT_DIR}/package/kernel/rtl8812au-ct"
+          rm -rf "${OPENWRT_DIR}/package/network/utils/xdp-tools"
 
           if [ ! -f "$OPENWRT_CONFIG" ] && [ -f "$DEVICE_CONFIG" ]; then
             cp "$DEVICE_CONFIG" "$OPENWRT_CONFIG"
@@ -301,7 +282,7 @@ jobs:
           fi
 
           # 3. Dopisanie deklaracji jądra TEE do config-6.18
-          KERNEL_CONFIG_TARGET=$(find ${{ github.workspace }}/openwrt/target/linux/qualcommax/ -name "config-6.18" | head -n 1)
+          KERNEL_CONFIG_TARGET=$(find "${OPENWRT_DIR}/target/linux/qualcommax/" -name "config-6.18" | head -n 1)
           if [ -n "$KERNEL_CONFIG_TARGET" ] && [ -f "$KERNEL_CONFIG_TARGET" ]; then
             printf '%s\n' \
               'CONFIG_TEE=m' \
@@ -314,9 +295,9 @@ jobs:
           # =========================================================================
           # 🇵🇱 SYSTEMOWE SCALENIE I18N DLA PPE-NSS (DODANIE DO RDZENIA LUCI-BASE)
           # =========================================================================
-          SOURCE_PO_DIR="${{ github.workspace }}/builder/$DEVICE_DIR/po/pl"
+          SOURCE_PO_DIR="${{ github.workspace }}/builder/${{ env.DEVICE_DIR }}/po/pl"
           PPE_LUCI_PO_SOURCE="$SOURCE_PO_DIR/luci-app-ppe-qos.po"
-          PPE_LUCI_APP_DIR=$(find "${{ github.workspace }}/openwrt/feeds/luci" -type d -name "luci-app-ppe-qos" | head -n 1)
+          PPE_LUCI_APP_DIR=$(find "${OPENWRT_DIR}/feeds/luci" -type d -name "luci-app-ppe-qos" | head -n 1)
           if [ -f "$PPE_LUCI_PO_SOURCE" ]; then
             if [ -n "$PPE_LUCI_APP_DIR" ] && [ -d "$PPE_LUCI_APP_DIR" ]; then
               mkdir -p "$PPE_LUCI_APP_DIR/po/pl"
@@ -327,9 +308,9 @@ jobs:
             fi
           fi
 
-          LUCI_BASE_PO="${{ github.workspace }}/openwrt/feeds/luci/modules/luci-base/po/pl/base.po"
+          LUCI_BASE_PO="${OPENWRT_DIR}/feeds/luci/modules/luci-base/po/pl/base.po"
           if [ ! -f "$LUCI_BASE_PO" ]; then
-            LUCI_BASE_PO=$(find ${{ github.workspace }}/openwrt/ -path "*/luci-base/po/pl/base.po" | head -n 1)
+            LUCI_BASE_PO=$(find "${OPENWRT_DIR}/" -path "*/luci-base/po/pl/base.po" | head -n 1)
           fi
 
           if [ -n "$LUCI_BASE_PO" ] && [ -f "$LUCI_BASE_PO" ]; then
@@ -346,8 +327,11 @@ jobs:
             echo "::warning::Nie znaleziono pliku po/pl/base.po; pomijam scalanie tłumaczeń PPE-NSS."
           fi
 
-          # Przeliczenie drzewa zależności konfiguracji
-          make -C ${{ github.workspace }}/openwrt defconfig FORCE=1
+          # 4. Przeliczenie drzewa zależności konfiguracji i blokada CONFIG_FEED_*
+          make -C "$OPENWRT_DIR" defconfig FORCE=1
+          sed -i 's/^CONFIG_FEED_nss=.*/# CONFIG_FEED_nss is not set/' "$OPENWRT_CONFIG" || true
+          sed -i 's/^CONFIG_FEED_obsy=.*/# CONFIG_FEED_obsy is not set/' "$OPENWRT_CONFIG" || true
+          sed -i 's/^CONFIG_FEED_luci_extra=.*/# CONFIG_FEED_luci_extra is not set/' "$OPENWRT_CONFIG" || true
 
       - name: Dynamically update custom OpenWrt banner info
         working-directory: openwrt
@@ -364,7 +348,7 @@ jobs:
           CURRENT_BUILD_TIME=$(date -u +"%Y-%m-%d %H:%M UTC")
 
           if [ -f files/etc/banner ]; then
-            VERSION_LINE="OpenWrt SNAPSHOT, ${OPENWRT_VERSION_RAW} (${{ matrix.variant }}, FW ${{ matrix.nss_fw }})"
+            VERSION_LINE="OpenWrt SNAPSHOT, ${OPENWRT_VERSION_RAW} (${{ matrix.variant }}, FW${{ matrix.nss_fw }})"
             DATE_LINE="Build time: $CURRENT_BUILD_TIME"
 
             VERSION_PADDING=$(printf '\%-74s' "$VERSION_LINE")
@@ -386,14 +370,14 @@ jobs:
           fi
 
           TARGET_RELEASE_FILE="package/base-files/files/etc/openwrt_release"
-          DISTRIB_DESCRIPTION="${OPENWRT_VERSION} (${{ matrix.variant }} [NSS FW ${{ matrix.nss_fw }}] build by @Payti)"
+          DISTRIB_DESCRIPTION="${OPENWRT_VERSION} (${{ matrix.variant }} [NSS FW${{ matrix.nss_fw }}] build by @Payti)"
           if [ -f "$TARGET_RELEASE_FILE" ]; then
             sed -i '/DISTRIB_DESCRIPTION=/d' "$TARGET_RELEASE_FILE" || true
             echo "DISTRIB_DESCRIPTION='${DISTRIB_DESCRIPTION}'" >> "$TARGET_RELEASE_FILE"
           fi
 
           echo "=================================================="
-          echo "VARIANT:                ${{ matrix.variant }} (NSS FW ${{ matrix.nss_fw }})"
+          echo "VARIANT:                ${{ matrix.variant }} (NSS FW${{ matrix.nss_fw }})"
           echo "OPENWRT_VERSION:        $OPENWRT_VERSION"
           echo "CURRENT_BUILD_TIME:     $CURRENT_BUILD_TIME"
           echo "VERSION_LINE:           ${VERSION_LINE:-}"
