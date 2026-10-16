@@ -91,7 +91,6 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       VARIANT: ${{ matrix.variant }}
-      BUILD_VARIANT: ${{ matrix.variant }}
       NSS_FW_VERSION: ${{ matrix.nss_fw }}
     steps:
       - name: Install build dependencies
