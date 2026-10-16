@@ -37,13 +37,10 @@ env:
   NSS_REPO: JuliusBairaktaris/nss-packages
   NSS_REF: edma-nss
   VARIANT: ppe-nss
-  # The luci feed comes from the fork carrying luci-app-ppe-qos (openwrt/luci
-  # PR 8965); prepare-build.sh swaps it in for the default luci feed.
   TARGET: qualcommax/ipq807x
   DEVICE: xiaomi_ax3600
   DEVICE_DIR: devices/xiaomi_ax3600
   RELEASE_PREFIX: ppe-nss
-  # KEEP=4 retains the last 2 standard (ppe-nss) + 2 mesh (ppe-nss-mesh) releases
   KEEP: "4"
   FEEDS: |
     src-git nss https://github.com/JuliusBairaktaris/nss-packages.git;edma-nss
@@ -100,7 +97,6 @@ jobs:
           sudo apt-get install -y \
             bzip2 g++ gawk gcc git glibc-source libncurses-dev make rsync mc
 
-      # Enable only for manual runs by the repo owner to avoid blocking scheduled/push builds.
       - name: Start tmate session for SSH login
         if: ${{ github.event_name == 'workflow_dispatch' && github.actor == 'Payti' && inputs.enable_tmate == 'yes' }}
         uses: mxschmitt/action-tmate@v3
@@ -139,7 +135,6 @@ jobs:
           chmod +x builder/scripts/prepare-build.sh
           bash builder/scripts/prepare-build.sh
 
-      # KROK B: Usunięcie zepsutych pakietów, konfiguracja wariantu (12.5 vs 11.4 Mesh), TEE, i18n oraz defconfig
       - name: Finalize feeds, Polish i18n, TEE and variant config (${{ matrix.variant }})
         run: |
           set -euo pipefail
@@ -147,143 +142,45 @@ jobs:
           OPENWRT_CONFIG="${OPENWRT_DIR}/.config"
           DEVICE_CONFIG="${{ github.workspace }}/builder/${{ env.DEVICE_DIR }}/config"
 
-          echo "### Usuwanie pakietów: dahdi-linux, rtl8812au-ct, xdp-tools, qt5, squeezelite - ponieważ się nie kompilują! ###"
+          echo "### Usuwanie pakietów dahdi-linux, rtl8812au-ct, xdp-tools ###"
           rm -rf "${OPENWRT_DIR}/package/feeds/telephony/dahdi-linux"
           rm -rf "${OPENWRT_DIR}/package/kernel/rtl8812au-ct"
           rm -rf "${OPENWRT_DIR}/package/network/utils/xdp-tools"
-          rm -rf "${OPENWRT_DIR}/feeds/video/frameworks/qt5"
-          rm -rf "${OPENWRT_DIR}/feeds/packages/sound/squeezelite"
+
+          # Zabezpieczenie iproute2 przed pustym --libbpf_force=
+          sed -i 's/--libbpf_force=\$(IPROUTE2_LIBBPF_FORCE)/--libbpf_force=\$(if \$(IPROUTE2_LIBBPF_FORCE),\$(IPROUTE2_LIBBPF_FORCE),off)/g' "${OPENWRT_DIR}/package/network/utils/iproute2/Makefile" || true
 
           if [ ! -f "$OPENWRT_CONFIG" ] && [ -f "$DEVICE_CONFIG" ]; then
             cp "$DEVICE_CONFIG" "$OPENWRT_CONFIG"
           fi
 
-          # 1. Dopisanie dodatkowych modułów i pakietów eko.one.pl
-          printf '%s\n' \
-            'CONFIG_IPQ_MEM_PROFILE_512=y' \
-            'CONFIG_KERNEL_IPQ_MEM_PROFILE=512' \
-            '# CONFIG_ALL_KMODS is not set' \
-            '# CONFIG_ALL_NONSHARED is not set' \
-            'CONFIG_PACKAGE_kmod-qca-nss-dp=y' \
-            'CONFIG_PACKAGE_kmod-nss-wifi-drv=y' \
-            'CONFIG_PACKAGE_nss-firmware-ipq8074=y' \
-            'CONFIG_ATH11K_NSS_SUPPORT=y' \
-            'CONFIG_PACKAGE_block-mount=m' \
-            'CONFIG_PACKAGE_kmod-crypto-crc32=m' \
-            'CONFIG_PACKAGE_kmod-fs-exfat=m' \
-            'CONFIG_PACKAGE_kmod-fs-f2fs=m' \
-            'CONFIG_PACKAGE_kmod-fs-ntfs3=m' \
-            'CONFIG_PACKAGE_kmod-fs-vfat=m' \
-            'CONFIG_PACKAGE_kmod-nls-cp437=m' \
-            'CONFIG_PACKAGE_kmod-nls-iso8859-1=m' \
-            'CONFIG_PACKAGE_kmod-nls-utf8=m' \
-            'CONFIG_PACKAGE_kmod-scsi-core=m' \
-            'CONFIG_PACKAGE_kmod-usb-storage=m' \
-            'CONFIG_PACKAGE_kmod-usb-storage-uas=m' \
-            'CONFIG_PACKAGE_ip-bridge=y' \
-            'CONFIG_PACKAGE_ip-full=y' \
-            'CONFIG_PACKAGE_ipset=m' \
-            'CONFIG_PACKAGE_iptables-mod-conntrack-extra=y' \
-            'CONFIG_PACKAGE_kmod-bonding=y' \
-            'CONFIG_PACKAGE_kmod-crypto-kpp=y' \
-            'CONFIG_PACKAGE_kmod-crypto-lib-chacha20=y' \
-            'CONFIG_PACKAGE_kmod-crypto-lib-chacha20poly1305=y' \
-            'CONFIG_PACKAGE_kmod-crypto-lib-curve25519=y' \
-            'CONFIG_PACKAGE_kmod-crypto-lib-poly1305=y' \
-            'CONFIG_PACKAGE_kmod-crypto-sha1=y' \
-            'CONFIG_PACKAGE_kmod-crypto-sha256=y' \
-            'CONFIG_PACKAGE_kmod-gre=y' \
-            'CONFIG_PACKAGE_gre=y' \
-            'CONFIG_PACKAGE_kmod-macvlan=y' \
-            'CONFIG_PACKAGE_kmod-nat46=y' \
-            'CONFIG_PACKAGE_kmod-vxlan=y' \
-            'CONFIG_PACKAGE_kmod-sit=y' \
-            'CONFIG_PACKAGE_kmod-ip6-tunnel=y' \
-            'CONFIG_PACKAGE_igmpproxy=y' \
-            'CONFIG_PACKAGE_kmod-ipt-conntrack=y' \
-            'CONFIG_PACKAGE_kmod-ipt-conntrack-extra=y' \
-            '# CONFIG_PACKAGE_kmod-ipt-rtpengine is not set' \
-            'CONFIG_PACKAGE_kmod-iptunnel=y' \
-            'CONFIG_PACKAGE_kmod-l2tp=y' \
-            'CONFIG_PACKAGE_kmod-nf-conncount=y' \
-            'CONFIG_PACKAGE_kmod-nft-bridge=y' \
-            'CONFIG_PACKAGE_kmod-pppol2tp=y' \
-            'CONFIG_PACKAGE_kmod-pptp=y' \
-            'CONFIG_PACKAGE_kmod-thermal=m' \
-            'CONFIG_PACKAGE_kmod-tls=y' \
-            'CONFIG_PACKAGE_kmod-udptunnel4=y' \
-            'CONFIG_PACKAGE_kmod-udptunnel6=y' \
-            'CONFIG_PACKAGE_kmod-wireguard=y' \
-            'CONFIG_PACKAGE_libbpf=y' \
-            'CONFIG_PACKAGE_libcap=y' \
-            'CONFIG_PACKAGE_libcap-ng=y' \
-            'CONFIG_PACKAGE_libelf=y' \
-            'CONFIG_PACKAGE_libipset=m' \
-            'CONFIG_PACKAGE_libqrencode=y' \
-            'CONFIG_PACKAGE_libwebsockets-full=y' \
-            'CONFIG_PACKAGE_libuv=y' \
-            'CONFIG_PACKAGE_libzstd=y' \
-            'CONFIG_PACKAGE_luci-app-mwan3=m' \
-            'CONFIG_PACKAGE_luci-app-ttyd=y' \
-            'CONFIG_PACKAGE_luci-app-upnp=y' \
-            'CONFIG_PACKAGE_luci-i18n-mwan3-pl=m' \
-            'CONFIG_PACKAGE_luci-i18n-ttyd-pl=y' \
-            'CONFIG_PACKAGE_luci-i18n-upnp-pl=y' \
-            'CONFIG_PACKAGE_luci-lib-base=y' \
-            'CONFIG_PACKAGE_luci-lib-ip=y' \
-            'CONFIG_PACKAGE_luci-lib-json=y' \
-            'CONFIG_PACKAGE_luci-lib-nixio=y' \
-            'CONFIG_PACKAGE_luci-lua-runtime=y' \
-            'CONFIG_PACKAGE_luci-mod-rpc=y' \
-            'CONFIG_PACKAGE_luci-proto-gre=y' \
-            'CONFIG_PACKAGE_luci-proto-vxlan=y' \
-            'CONFIG_PACKAGE_luci-proto-wireguard=y' \
-            'CONFIG_PACKAGE_map=y' \
-            'CONFIG_PACKAGE_mesh11sd=m' \
-            'CONFIG_PACKAGE_miniupnpd-nftables=y' \
-            'CONFIG_PACKAGE_mwan3=m' \
-            'CONFIG_PACKAGE_qca-ssdk-shell=y' \
-            'CONFIG_PACKAGE_qrencode=y' \
-            'CONFIG_PACKAGE_tc-full=y' \
-            '# CONFIG_PACKAGE_tc-tiny is not set' \
-            'CONFIG_PACKAGE_tcpdump=m' \
-            'CONFIG_PACKAGE_tcpdump-mini=m' \
-            'CONFIG_PACKAGE_ttyd=y' \
-            'CONFIG_PACKAGE_vxlan=y' \
-            'CONFIG_PACKAGE_wget-ssl=y' \
-            'CONFIG_PACKAGE_wireguard-tools=y' \
-            'CONFIG_PACKAGE_ds-lite=y' \
-            'CONFIG_PACKAGE_ethtool=y' \
-            'CONFIG_PACKAGE_luci=y' \
-            'CONFIG_LUCI_LANG_pl=y' \
-            'CONFIG_PACKAGE_luci-app-firewall=y' \
-            'CONFIG_PACKAGE_sqm-scripts=y' \
-            'CONFIG_PACKAGE_luci-app-sqm=y' \
-            'CONFIG_PACKAGE_luci-i18n-sqm-pl=y' \
-            'CONFIG_PACKAGE_ppe-qos=y' \
-            'CONFIG_PACKAGE_luci-app-ppe-qos=y' \
-            'CONFIG_PACKAGE_luci-i18n-ppe-qos-pl=y' >> "$OPENWRT_CONFIG"
-
-          # 2. Przełączanie wersji Firmware NSS (12.5 vs 11.4) oraz wsparcia 802.11s zależnie od wariantu
+          # 1. Konfiguracja wariantu: ppe-nss (FW 12.5) vs ppe-nss-mesh (FW 11.4 + Mesh)
           sed -i '/CONFIG_NSS_FIRMWARE_VERSION_12_5/d' "$OPENWRT_CONFIG"
           sed -i '/CONFIG_NSS_FIRMWARE_VERSION_11_4/d' "$OPENWRT_CONFIG"
           sed -i '/CONFIG_ATH11K_NSS_MESH_SUPPORT/d' "$OPENWRT_CONFIG"
 
           if [ "${{ matrix.mesh_support }}" = "yes" ]; then
-            echo "--> Konfiguracja wariantu MESH (NSS FW 11.4 + ATH11K_NSS_MESH_SUPPORT)"
+            echo "--> Konfiguracja wariantu ppe-nss-mesh (NSS FW 11.4 + ATH11K_NSS_MESH_SUPPORT)"
+            sed -i '/CONFIG_PACKAGE_wpad-mbedtls/d' "$OPENWRT_CONFIG"
             printf '%s\n' \
+              'CONFIG_PACKAGE_kmod-qca-ppe-nss=y' \
+              'CONFIG_PACKAGE_kmod-qca-nss-drv=y' \
               '# CONFIG_NSS_FIRMWARE_VERSION_12_5 is not set' \
               'CONFIG_NSS_FIRMWARE_VERSION_11_4=y' \
-              'CONFIG_ATH11K_NSS_MESH_SUPPORT=y' >> "$OPENWRT_CONFIG"
+              'CONFIG_ATH11K_NSS_MESH_SUPPORT=y' \
+              '# CONFIG_PACKAGE_wpad-mbedtls is not set' \
+              'CONFIG_PACKAGE_wpad-mesh-mbedtls=y' >> "$OPENWRT_CONFIG"
           else
-            echo "--> Konfiguracja wariantu STANDARD (NSS FW 12.5)"
+            echo "--> Konfiguracja wariantu ppe-nss (NSS FW 12.5)"
             printf '%s\n' \
+              'CONFIG_PACKAGE_kmod-qca-ppe-nss=y' \
+              'CONFIG_PACKAGE_kmod-qca-nss-drv=y' \
               'CONFIG_NSS_FIRMWARE_VERSION_12_5=y' \
               '# CONFIG_NSS_FIRMWARE_VERSION_11_4 is not set' \
               '# CONFIG_ATH11K_NSS_MESH_SUPPORT is not set' >> "$OPENWRT_CONFIG"
           fi
 
-          # 3. Dopisanie deklaracji jądra TEE do config-6.18
+          # 2. Dopisanie deklaracji jądra TEE do config-6.18
           KERNEL_CONFIG_TARGET=$(find "${OPENWRT_DIR}/target/linux/qualcommax/" -name "config-6.18" | head -n 1)
           if [ -n "$KERNEL_CONFIG_TARGET" ] && [ -f "$KERNEL_CONFIG_TARGET" ]; then
             printf '%s\n' \
@@ -291,23 +188,17 @@ jobs:
               'CONFIG_OPTEE=m' \
               'CONFIG_QCOMTEE=m' \
               '# CONFIG_OPTEE_INSECURE_LOAD_IMAGE is not set' >> "$KERNEL_CONFIG_TARGET"
-            echo "--> SUCCESS: Wszystkie brakujące deklaracje jądra TEE zostały dopisane do $KERNEL_CONFIG_TARGET"
+            echo "--> SUCCESS: Dopisano deklaracje jądra TEE do $KERNEL_CONFIG_TARGET"
           fi
 
-          # =========================================================================
-          # 🇵🇱 SYSTEMOWE SCALENIE I18N DLA PPE-NSS (DODANIE DO RDZENIA LUCI-BASE)
-          # =========================================================================
+          # 3. Systemowe scalenie polskich tłumaczeń i18n dla PPE-NSS
           SOURCE_PO_DIR="${{ github.workspace }}/builder/${{ env.DEVICE_DIR }}/po/pl"
           PPE_LUCI_PO_SOURCE="$SOURCE_PO_DIR/luci-app-ppe-qos.po"
           PPE_LUCI_APP_DIR=$(find "${OPENWRT_DIR}/feeds/luci" -type d -name "luci-app-ppe-qos" | head -n 1)
-          if [ -f "$PPE_LUCI_PO_SOURCE" ]; then
-            if [ -n "$PPE_LUCI_APP_DIR" ] && [ -d "$PPE_LUCI_APP_DIR" ]; then
-              mkdir -p "$PPE_LUCI_APP_DIR/po/pl"
-              cp "$PPE_LUCI_PO_SOURCE" "$PPE_LUCI_APP_DIR/po/pl/luci-app-ppe-qos.po"
-              echo "--> SUCCESS: Dodano polskie tłumaczenie luci-app-ppe-qos do feedu LuCI"
-            else
-              echo "::warning::Nie znaleziono katalogu luci-app-ppe-qos w feedzie LuCI; pomijam tłumaczenie."
-            fi
+          if [ -f "$PPE_LUCI_PO_SOURCE" ] && [ -n "$PPE_LUCI_APP_DIR" ] && [ -d "$PPE_LUCI_APP_DIR" ]; then
+            mkdir -p "$PPE_LUCI_APP_DIR/po/pl"
+            cp "$PPE_LUCI_PO_SOURCE" "$PPE_LUCI_APP_DIR/po/pl/luci-app-ppe-qos.po"
+            echo "--> SUCCESS: Dodano polskie tłumaczenie luci-app-ppe-qos do feedu LuCI"
           fi
 
           LUCI_BASE_PO="${OPENWRT_DIR}/feeds/luci/modules/luci-base/po/pl/base.po"
@@ -322,11 +213,9 @@ jobs:
                   printf '\n'
                   awk 'BEGIN { header=1 } header && /^$/ { header=0; next } !header { print }' "$SOURCE_PO"
                 } >> "$LUCI_BASE_PO"
-                echo "--> SUCCESS: Pomyślnie scalono $(basename "$SOURCE_PO" .po) z głównym słownikiem systemowym po/pl/base.po"
+                echo "--> SUCCESS: Scalono $(basename "$SOURCE_PO" .po) z po/pl/base.po"
               fi
             done
-          else
-            echo "::warning::Nie znaleziono pliku po/pl/base.po; pomijam scalanie tłumaczeń PPE-NSS."
           fi
 
           # 4. Przeliczenie drzewa zależności konfiguracji i blokada CONFIG_FEED_*
@@ -456,7 +345,6 @@ jobs:
           for asset in "${assets[@]}"; do
             dir=$(dirname "$asset")
             base=$(basename "$asset")
-            # Nadaj czytelny prefiks wariantu (ppe-nss-... lub ppe-nss-mesh-...)
             clean_base="${base#ppe-nss-mesh-}"
             clean_base="${clean_base#ppe-nss-}"
             clean_base="${clean_base#ppe-}"
