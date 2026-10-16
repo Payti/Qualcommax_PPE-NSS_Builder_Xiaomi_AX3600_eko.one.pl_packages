@@ -147,9 +147,6 @@ jobs:
           rm -rf "${OPENWRT_DIR}/package/kernel/rtl8812au-ct"
           rm -rf "${OPENWRT_DIR}/package/network/utils/xdp-tools"
 
-          # Zabezpieczenie iproute2 przed pustym --libbpf_force=
-          sed -i 's/--libbpf_force=\$(IPROUTE2_LIBBPF_FORCE)/--libbpf_force=\$(if \$(IPROUTE2_LIBBPF_FORCE),\$(IPROUTE2_LIBBPF_FORCE),off)/g' "${OPENWRT_DIR}/package/network/utils/iproute2/Makefile" || true
-
           if [ ! -f "$OPENWRT_CONFIG" ] && [ -f "$DEVICE_CONFIG" ]; then
             cp "$DEVICE_CONFIG" "$OPENWRT_CONFIG"
           fi
