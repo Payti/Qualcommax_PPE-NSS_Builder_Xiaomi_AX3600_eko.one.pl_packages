@@ -148,10 +148,12 @@ jobs:
           OPENWRT_CONFIG="${OPENWRT_DIR}/.config"
           DEVICE_CONFIG="${{ github.workspace }}/builder/${{ env.DEVICE_DIR }}/config"
 
-          echo "### Usuwanie pakietów dahdi-linux, rtl8812au-ct, xdp-tools ponieważ się nie kompilują! ###"
+          echo "### Usuwanie pakietów: dahdi-linux, rtl8812au-ct, xdp-tools, qt5, squeezelite - ponieważ się nie kompilują! ###"
           rm -rf "${OPENWRT_DIR}/package/feeds/telephony/dahdi-linux"
           rm -rf "${OPENWRT_DIR}/package/kernel/rtl8812au-ct"
           rm -rf "${OPENWRT_DIR}/package/network/utils/xdp-tools"
+          rm -rf "${OPENWRT_DIR}/feeds/video/frameworks/qt5"
+          rm -rf "${OPENWRT_DIR}/feeds/packages/sound/squeezelite"
 
           if [ ! -f "$OPENWRT_CONFIG" ] && [ -f "$DEVICE_CONFIG" ]; then
             cp "$DEVICE_CONFIG" "$OPENWRT_CONFIG"
