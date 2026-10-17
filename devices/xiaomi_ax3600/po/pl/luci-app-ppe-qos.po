@@ -17,17 +17,23 @@ msgstr "Określa, z której kolejki wyjściowej przełącznika korzysta dany str
 msgid "Global"
 msgstr "Globalne"
 
-msgid "Enable marking rules"
-msgstr "Włącz reguły znakowania"
+msgid "Enable"
+msgstr "Włącz"
 
-msgid "Turns the rules below off without deleting them. The DSCP maps and the small-packet priority stay in effect either way."
-msgstr "Wyłącza poniższe reguły bez ich usuwania. Mapy DSCP i priorytet małych pakietów pozostają aktywne niezależnie od tego ustawienia."
+msgid "Turns the whole configuration off without deleting it. The marking rules, the DSCP maps and the small-packet priority are all removed while this is off."
+msgstr "Wyłącza całą konfigurację bez jej usuwania. Reguły znakowania, mapy DSCP oraz priorytet małych pakietów zostają wycofane, dopóki ta opcja jest wyłączona."
+
+msgid "Mark upload"
+msgstr "Znakuj wysyłanie (upload)"
+
+msgid "Also installs every rule as written on each client-facing port, so the upload half is marked too. That costs a classifier entry per port instead of one on the uplink, and buys little: sparse upload traffic already takes the priority band as a small packet, and the ISP usually clears the mark."
+msgstr "Instaluje również każdą regułę bezpośrednio na każdym porcie klienckim, dzięki czemu znakowany jest także ruch wychodzący (upload). Zużywa to wpis klasyfikatora na każdym porcie zamiast jednego na porcie uplink i daje niewielką korzyść: drobny ruch wychodzący i tak trafia do pasma priorytetowego jako małe pakiety, a operator (ISP) zazwyczaj czyści oznaczenia DSCP."
 
 msgid "Small packet: maximum L3 length"
 msgstr "Mały pakiet: maksymalna długość L3"
 
-msgid "Frames up to this IP length take the priority below whatever their marking: ACKs, handshakes, DNS, VoIP and game traffic jump the bulk queue. 0 disables. A value just under the MTU means \"everything that is not a full-size bulk frame\"."
-msgstr "Ramki o długości IP do tej wartości otrzymują poniższy priorytet niezależnie od oznaczenia: pakiety ACK, uzgadnianie połączeń, DNS, VoIP i ruch gier omijają kolejkę masową. 0 wyłącza tę funkcję. Wartość tuż poniżej MTU oznacza \"wszystko, co nie jest pełnowymiarową ramką masową\"."
+msgid "Frames up to this IP length take the priority below whatever their marking: ACKs, handshakes, DNS, VoIP and game traffic jump the bulk queue. 0 disables. The value has to stay under a full-size segment: a bulk segment that qualified would ride the priority band."
+msgstr "Ramki o długości IP do tej wartości otrzymują poniższy priorytet niezależnie od oznaczenia: pakiety ACK, uzgadnianie połączeń, DNS, VoIP i ruch gier omijają kolejkę masową. 0 wyłącza tę funkcję. Wartość musi być mniejsza niż pełnowymiarowy segment: segment ruchu masowego, który by się zakwalifikował, trafiłby do pasma priorytetowego."
 
 msgid "Small packet: priority"
 msgstr "Mały pakiet: priorytet"
@@ -50,14 +56,14 @@ msgstr "automatycznie"
 msgid "Marking rules"
 msgstr "Reguły znakowania"
 
-msgid "Each rule is applied in both directions: as written on the ports your clients sit behind, and mirrored on the uplink port so the returning half of the same connection is marked too. Ports may be single or a range (5000-5500), and several may be listed. The switch matches addresses and ports only - there is no matching by domain name."
-msgstr "Każda reguła jest stosowana w obu kierunkach: zgodnie z konfiguracją na portach, za którymi znajdują się klienci, oraz jako odbicie na porcie uplink, aby oznaczyć również ruch powrotny tego samego połączenia. Port może być pojedynczy lub stanowić zakres (5000-5500), można też podać kilka portów. Przełącznik dopasowuje tylko adresy i porty, bez dopasowywania nazw domen."
-
-msgid "Enable"
-msgstr "Włącz"
+msgid "Each rule is installed on the uplink port, matched as the returning half of the connection with source and destination swapped, so the download direction is marked. The upload half is installed on the ports your clients sit behind only when \"Mark upload\" is set above. Ports may be single or a range (5000-5500), and several may be listed. The switch matches addresses and ports only - there is no matching by domain name."
+msgstr "Każda reguła jest instalowana na porcie uplink i dopasowywana jako powrotna połowa połączenia z zamienionym adresem źródłowym i docelowym, dzięki czemu znakowany jest kierunek pobierania (download). Kierunek wysyłania (upload) jest instalowany na portach klientów tylko wtedy, gdy powyżej włączono opcję \"Znakuj wysyłanie (upload)\". Porty można podawać pojedynczo lub jako zakres (5000-5500), można też wymienić ich kilka. Przełącznik dopasowuje wyłącznie adresy i porty – brak dopasowywania po nazwach domen."
 
 msgid "Name"
 msgstr "Nazwa"
+
+msgid "Protocol"
+msgstr "Protokół"
 
 msgid "TCP and UDP"
 msgstr "TCP i UDP"
@@ -134,6 +140,9 @@ msgstr "Wartość oznaczenia odczytanego przez przełącznik. Stosowane poleceni
 msgid "DSCP"
 msgstr "DSCP"
 
+msgid "Priority"
+msgstr "Priorytet"
+
 msgid "32 (CS4 - games)"
 msgstr "32 (CS4 - gry)"
 
@@ -148,3 +157,15 @@ msgstr "46 (EF - głos)"
 
 msgid "48 (CS6 - control)"
 msgstr "48 (CS6 - sterowanie)"
+
+msgid "Enable marking rules"
+msgstr "Włącz reguły znakowania"
+
+msgid "Turns the rules below off without deleting them. The DSCP maps and the small-packet priority stay in effect either way."
+msgstr "Wyłącza poniższe reguły bez ich usuwania. Mapy DSCP i priorytet małych pakietów pozostają aktywne niezależnie od tego ustawienia."
+
+msgid "Frames up to this IP length take the priority below whatever their marking: ACKs, handshakes, DNS, VoIP and game traffic jump the bulk queue. 0 disables. A value just under the MTU means \"everything that is not a full-size bulk frame\"."
+msgstr "Ramki o długości IP do tej wartości otrzymują poniższy priorytet niezależnie od oznaczenia: pakiety ACK, uzgadnianie połączeń, DNS, VoIP i ruch gier omijają kolejkę masową. 0 wyłącza tę funkcję. Wartość tuż poniżej MTU oznacza \"wszystko, co nie jest pełnowymiarową ramką masową\"."
+
+msgid "Each rule is applied in both directions: as written on the ports your clients sit behind, and mirrored on the uplink port so the returning half of the same connection is marked too. Ports may be single or a range (5000-5500), and several may be listed. The switch matches addresses and ports only - there is no matching by domain name."
+msgstr "Każda reguła jest stosowana w obu kierunkach: zgodnie z konfiguracją na portach, za którymi znajdują się klienci, oraz jako odbicie na porcie uplink, aby oznaczyć również ruch powrotny tego samego połączenia. Port może być pojedynczy lub stanowić zakres (5000-5500), można też podać kilka portów. Przełącznik dopasowuje tylko adresy i porty, bez dopasowywania nazw domen."
