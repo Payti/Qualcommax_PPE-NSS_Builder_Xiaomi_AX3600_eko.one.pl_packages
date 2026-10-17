@@ -151,27 +151,20 @@ jobs:
             cp "$DEVICE_CONFIG" "$OPENWRT_CONFIG"
           fi
 
-          # 1. Konfiguracja wariantu: ppe-nss (FW 12.5) vs ppe-nss-mesh (FW 11.4 + Mesh)
+          # 1. Konfiguracja wariantu: ppe-nss (FW 12.5) vs ppe-nss-mesh (FW 11.4 + Mesh) wg wzorca Juliusa
           sed -i '/CONFIG_NSS_FIRMWARE_VERSION_12_5/d' "$OPENWRT_CONFIG"
           sed -i '/CONFIG_NSS_FIRMWARE_VERSION_11_4/d' "$OPENWRT_CONFIG"
           sed -i '/CONFIG_ATH11K_NSS_MESH_SUPPORT/d' "$OPENWRT_CONFIG"
 
           if [ "${{ matrix.mesh_support }}" = "yes" ]; then
             echo "--> Konfiguracja wariantu ppe-nss-mesh (NSS FW 11.4 + ATH11K_NSS_MESH_SUPPORT)"
-            sed -i '/CONFIG_PACKAGE_wpad-mbedtls/d' "$OPENWRT_CONFIG"
             printf '%s\n' \
-              'CONFIG_PACKAGE_kmod-qca-ppe-nss=y' \
-              'CONFIG_PACKAGE_kmod-qca-nss-drv=y' \
               '# CONFIG_NSS_FIRMWARE_VERSION_12_5 is not set' \
               'CONFIG_NSS_FIRMWARE_VERSION_11_4=y' \
-              'CONFIG_ATH11K_NSS_MESH_SUPPORT=y' \
-              '# CONFIG_PACKAGE_wpad-mbedtls is not set' \
-              'CONFIG_PACKAGE_wpad-mesh-mbedtls=y' >> "$OPENWRT_CONFIG"
+              'CONFIG_ATH11K_NSS_MESH_SUPPORT=y' >> "$OPENWRT_CONFIG"
           else
             echo "--> Konfiguracja wariantu ppe-nss (NSS FW 12.5)"
             printf '%s\n' \
-              'CONFIG_PACKAGE_kmod-qca-ppe-nss=y' \
-              'CONFIG_PACKAGE_kmod-qca-nss-drv=y' \
               'CONFIG_NSS_FIRMWARE_VERSION_12_5=y' \
               '# CONFIG_NSS_FIRMWARE_VERSION_11_4 is not set' \
               '# CONFIG_ATH11K_NSS_MESH_SUPPORT is not set' >> "$OPENWRT_CONFIG"

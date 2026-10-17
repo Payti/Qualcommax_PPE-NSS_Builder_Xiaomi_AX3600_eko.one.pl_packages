@@ -14,12 +14,6 @@ CONFIG_IPQ_MEM_PROFILE_512=y
 CONFIG_KERNEL_IPQ_MEM_PROFILE=512
 
 ## PPE-NSS & Wi-Fi (ath11k) Hardware Offload
-CONFIG_PACKAGE_kmod-qca-ppe-nss=y
-CONFIG_PACKAGE_kmod-qca-nss-drv=y
-CONFIG_PACKAGE_kmod-qca-nss-ecm=y
-CONFIG_PACKAGE_kmod-qca-nss-drv-pppoe=y
-CONFIG_PACKAGE_kmod-qca-nss-drv-bridge-mgr=y
-CONFIG_PACKAGE_kmod-qca-nss-drv-vlan-mgr=y
 CONFIG_PACKAGE_kmod-nss-wifi-drv=y
 CONFIG_PACKAGE_nss-firmware-ipq8074=y
 CONFIG_NSS_FIRMWARE_VERSION_12_5=y

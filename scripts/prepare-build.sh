@@ -34,14 +34,12 @@ fi
 cd "$OPENWRT_DIR"
 
 # ==============================================================================
-echo "=== [1/4] Konfiguracja feeds.conf ==="
-# Pracujemy na kopii feeds.conf, aby nie brudzić (dirty) repozytorium git OpenWrt
+echo "=== [1/4] Konfiguracja i aktualizacja feeds.conf ==="
 [[ -f feeds.conf ]] || cp feeds.conf.default feeds.conf
 FEEDS_FILE="${OPENWRT_DIR}/feeds.conf"
 
 if [[ -n "${FEEDS:-}" ]]; then
   while IFS= read -r line; do
-    # Usuń znaki CRLF oraz pomiń puste linie i komentarze
     line="${line%$'\r'}"
     [[ -z "${line// }" || "$line" =~ ^[[:space:]]*# ]] && continue
 
@@ -62,18 +60,15 @@ echo "--- Aktualna zawartość feeds.conf ---"
 cat "$FEEDS_FILE"
 echo "-------------------------------------"
 
-# Jeśli zmienna RUN_FEEDS_IN_PREPARE=1, skrypt sam pobierze i zainstaluje feedy w tym miejscu.
 if [[ "${RUN_FEEDS_IN_PREPARE:-0}" == "1" ]]; then
-  log_info "Aktualizacja i instalacja wszystkich feedów (RUN_FEEDS_IN_PREPARE=1)..."
+  log_info "Pobieranie feedów (./scripts/feeds update -a)..."
   ./scripts/feeds update -a
-  ./scripts/feeds install -a
 fi
 
 # ==============================================================================
-echo "=== [2/4] Nakładanie łatek na drzewo OpenWrt i feedy ==="
+echo "=== [2/4] Nakładanie łatek na drzewo OpenWrt i feedy (PRZED feeds install) ==="
 shopt -s nullglob
 
-# Funkcja nakładająca łatkę z weryfikacją 3-stanową i czyszczeniem CRLF w locie
 apply_patch_safely() {
   local patch_file="$1"
   local target_dir="$2"
@@ -87,18 +82,19 @@ apply_patch_safely() {
   elif tr -d '\r' <"$patch_file" | patch -p1 -d "$target_dir" --dry-run --reverse -F 3 >/dev/null 2>&1; then
     log_info "Skipping ${label} patch: ${patch_name} (already applied in source)"
   else
-    log_warn "Łatka ${patch_name} nie pasuje do ${label} (${target_dir})! Szczegóły konfliktu:"
+    log_error "Łatka ${patch_name} nie pasuje do ${label} (${target_dir})! Szczegóły konfliktu:"
     tr -d '\r' <"$patch_file" | patch -p1 -d "$target_dir" --dry-run --forward -F 3 || true
     log_warn "Łatka ${patch_name} została pominięta (plik już istnieje lub dotyczy innej wersji jądra)."
   fi
 }
 
-# 2a. Łatki na główne drzewo OpenWrt (z deduplikacją katalogów)
+# 2a. Łatki na główne drzewo OpenWrt
 declare -A visited_dirs=()
 for patch_dir in \
   "${BUILDER_REPO}/patches" \
   "${BUILDER_REPO}/patches/openwrt" \
   "${BUILDER_REPO}/patches/tree/ppe" \
+  "${BUILDER_REPO}/patches/tree/ppe-nss" \
   "${BUILDER_REPO}/patches/tree/${VARIANT}" \
   "${BUILDER_REPO}/patches/${VARIANT}"; do
 
@@ -114,7 +110,7 @@ for patch_dir in \
   fi
 done
 
-# 2b. Łatki na pobrane feedy (wykona się automatycznie, jeśli katalog feeds/ już istnieje)
+# 2b. Łatki na pobrane feedy
 for feed_variant_dir in \
   "${BUILDER_REPO}/patches/feeds/ppe" \
   "${BUILDER_REPO}/patches/feeds/ppe-nss" \
@@ -125,19 +121,25 @@ for feed_variant_dir in \
     [[ -n "${visited_dirs[$real_fdir]:-}" ]] && continue
     visited_dirs[$real_fdir]=1
 
-    # Struktura: patches/feeds/<variant>/<feed_name>/*.patch
     for p in "$feed_variant_dir"/*/*.patch; do
       feed_name="$(basename "$(dirname "$p")")"
       target_feed_dir="${OPENWRT_DIR}/feeds/${feed_name}"
       if [[ -d "$target_feed_dir" ]]; then
         apply_patch_safely "$p" "$target_feed_dir" "feed/${feed_name}"
       else
-        log_warn "Pominięto łatkę $(basename "$p") - katalog feeds/${feed_name} jeszcze nie istnieje (wykonaj 'feeds update' wcześniej)."
+        log_warn "Pominięto łatkę $(basename "$p") - katalog feeds/${feed_name} nie istnieje."
       fi
     done
   fi
 done
 shopt -u nullglob
+
+# Instalacja feedów DOPIERO PO nałożeniu łatek na drzewo i feedy!
+if [[ "${RUN_FEEDS_IN_PREPARE:-0}" == "1" ]]; then
+  log_info "Instalacja wszystkich feedów z uwzględnieniem nałożonych łatek (./scripts/feeds install -a)..."
+  rm -rf "${OPENWRT_DIR}/tmp"
+  ./scripts/feeds install -a
+fi
 
 # ==============================================================================
 echo "=== [3/4] Kopiowanie własnych plików (files/ overlay) ==="
