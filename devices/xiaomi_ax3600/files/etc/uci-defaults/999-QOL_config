@@ -8,7 +8,7 @@ set firewall.@zone[1].input='DROP'
 set bcp38.cfg018e45.enabled='1'
 set bcp38.cfg018e45.interface='wan'
 set system.ntp.enable_server='1'
-set uhttpd.main.redirect_https='1'
+set uhttpd.main.redirect_https='0'
 EOI
 
 lan_ip=$(uci -q get network.lan.ipaddr)
