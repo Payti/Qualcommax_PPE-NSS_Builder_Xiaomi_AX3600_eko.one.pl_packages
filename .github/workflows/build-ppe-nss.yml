@@ -361,7 +361,7 @@ jobs:
 
           gh release create "$tag_name" \
             --repo "$GITHUB_REPOSITORY" \
-            --title "OpenWrt PPE-NSS (NSS FW ${{ env.NSS_FW_LABEL }})$date" \
+            --title "OpenWrt PPE-NSS (NSS FW ${{ env.NSS_FW_LABEL }}) $date" \
             --notes-file release_notes.md \
             "${renamed_assets[@]}"
 
