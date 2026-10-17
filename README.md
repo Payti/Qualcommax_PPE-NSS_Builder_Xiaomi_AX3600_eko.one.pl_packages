@@ -13,10 +13,12 @@ VLAN, SQM, bridge, multicast and Wi-Fi) dedicated to the **Xiaomi AX3600**
 `ekooneplconfigs`, `sysinfo`, `luci-app-ekooneplstat`) and full Polish LuCI
 translations (`luci-i18n-*-pl`).
 
-The images run OpenWrt main's upstream `qca_edma`/`qca_ppe` drivers and use
-in-kernel offload interfaces combined with `kmod-nss-wifi-drv` for NSS Wi-Fi
-acceleration: no ECM, no NSS qdiscs and no legacy vendor NSS host driver. They
-are built automatically by GitHub Actions from the `ppe-nss` branch of
+The wired traffic (routing, NAT, PPPoE, VLAN, bridging, multicast snooping and
+SQM) runs in the PPE, the packet engine in the SoC's switch, through OpenWrt's
+upstream `qca_edma`/`qca_ppe` drivers and the kernel's own offload interfaces.
+The Wi-Fi data path of the SoC radios runs on the NSS cores through
+`kmod-nss-wifi-drv`: no ECM, no NSS qdiscs and no legacy vendor NSS host driver.
+They are built automatically by GitHub Actions from the `ppe-nss` branch of
 [openwrt-ppe-nss](https://github.com/JuliusBairaktaris/openwrt-ppe-nss); the
 NSS firmware comes from
 [nss-packages](https://github.com/JuliusBairaktaris/nss-packages) (`edma-nss`
@@ -34,10 +36,9 @@ with [PPE and NSS Wi-Fi Offload](https://github.com/JuliusBairaktaris/openwrt-pp
 
 ## Install
 
-Download `ppe-nss-...-xiaomi_ax3600-squashfs-sysupgrade.bin` (or
-`ppe-nss-mesh-...` for 802.11s Mesh setups) from the
+Download `ppe-nss-...-xiaomi_ax3600-squashfs-sysupgrade.bin` from the
 [Releases page](https://github.com/Payti/Qualcommax_PPE-NSS_Builder_Xiaomi_AX3600_eko.one.pl_packages/releases)
-and flash it from LuCI (System → Backup / Flash Firmware) or over SSH:
+and flash it from LuCI (System -> Backup / Flash Firmware) or over SSH:
 
 ```sh
 sysupgrade -n /tmp/ppe-nss-openwrt-qualcommax-ipq807x-xiaomi_ax3600-squashfs-sysupgrade.bin
@@ -46,14 +47,10 @@ sysupgrade -n /tmp/ppe-nss-openwrt-qualcommax-ipq807x-xiaomi_ax3600-squashfs-sys
 There is no factory image. The device must already run OpenWrt; install stock
 OpenWrt first using its [device page](https://openwrt.org/toh/xiaomi/ax3600).
 
-### Available Release Variants
-
-Both variants are built in parallel on every run for the **Xiaomi AX3600**:
-
-| Release Tag Prefix | NSS Firmware | Use it for |
+| Release | NSS Firmware | Use it for |
 |---|---|---|
-| `ppe-nss-*` | **12.5** (`NSS.FW.12.5-210-HK.R`) | **Default / Recommended.** Best stability and performance for standard Router / AP / WDS setups. Does not offload 802.11s mesh interfaces. |
-| `ppe-nss-mesh-*` | **11.4.0.5** (`CONFIG_NSS_FIRMWARE_VERSION_11_4=y`) | **802.11s Mesh.** Built with `CONFIG_ATH11K_NSS_MESH_SUPPORT=y` on NSS firmware 11.4.0.5 (the last firmware line that supports NSS mesh path offload). |
+| `ppe-nss-*` | **12.5** (`NSS.FW.12.5-210-HK.R`) + **11.4.0.5** | **Default (Unified image).** Carries both NSS firmware lines and boots **12.5** by default for Router / AP / WDS setups. For 802.11s mesh (which requires 11.4.0.5), switch at runtime with:<br>`uci set nss-wifi.general.firmware=11.4; uci commit nss-wifi; reboot` |
+| `ppe-nss-mesh-*` | **11.4.0.5** | Earlier mesh builds on 11.4. No longer built separately: the `ppe-nss` images now carry both firmware lines. |
 
 <details>
 <summary>Devices built: Xiaomi AX3600 (IPQ8071A)</summary>
@@ -64,42 +61,52 @@ Both variants are built in parallel on every run for the **Xiaomi AX3600**:
 
 </details>
 
-## Status and recovery
+## Offload on and off
 
-The wired offload uses the `fw4` flowtable, enabled on first boot (Network →
-Firewall → Hardware flow offloading). Check active hardware flows in PPE with:
+The wired offload uses the `fw4` flowtable, enabled on first boot (Network ->
+Firewall -> Hardware flow offloading). Check active hardware flows in PPE with:
 
 ```sh
 grep -c HW_OFFLOAD /proc/net/nf_conntrack
 ```
 
-The NSS Wi-Fi offload (`kmod-nss-wifi-drv`) can be toggled in `/etc/nss-wifi`. To disable
-it and fall back to the host CPU path:
+The NSS Wi-Fi offload (`kmod-nss-wifi-drv`) is on by default. Turn it off with:
 
 ```sh
 uci set nss-wifi.general.offload='0'; uci commit nss-wifi; reboot
 ```
 
-The service clears the flag while the offload starts and sets it again two minutes after
-the firmware has taken the data plane, so a boot that hangs falls back to the
-host Wi-Fi path on the next boot. `logread -e nss-wifi` shows the bring-up.
+To switch between NSS firmware **12.5** (default) and **11.4** (for 802.11s mesh):
+
+```sh
+uci set nss-wifi.general.firmware='11.4'; uci commit nss-wifi; reboot
+```
+
+While the offload starts, the service keeps a marker in `/etc/nss-wifi.pending`
+and removes it two minutes later. A boot that hangs leaves the marker, and the
+next boot stays on the host Wi-Fi path until it is deleted. `logread -e nss-wifi`
+shows the bring-up.
 
 ## Coming from edma-nss or pure ppe
 
-Upgrade with a normal sysupgrade. The legacy `nss` and `nssqos` configs are no
-longer read. On the Xiaomi AX3600 image the `sqm.wan` section uses `hw_ppe.qos`.
-Set up queue classifiers under **Network → PPE QoS** (`luci-app-ppe-qos`).
+Upgrade with a normal sysupgrade; settings may be kept. See the upstream
+[migration page](https://github.com/JuliusBairaktaris/openwrt-ppe-nss/wiki/Migrating-from-edma-nss):
+
+- Turn hardware flow offloading on in Network -> Firewall if upgrading from `edma-nss`.
+- The legacy `nss` and `nssqos` configs are no longer read.
+- On the Xiaomi AX3600 image the `sqm.wan` section uses `hw_ppe.qos`.
+- Set up queue classifiers under **Network -> PPE QoS** (`luci-app-ppe-qos`).
 
 ## What ships
 
 | Area | Packages |
 |---|---|
 | **Routing, NAT** | PPE through the `fw4` flowtable: IPv4/IPv6, NAT, PPPoE, 802.1Q VLAN, DS-Lite, MAP, WireGuard, GRE, VXLAN, L2TP |
-| **Bridge, multicast** | PPE through switchdev, multicast snooping + `igmpproxy` |
-| **SQM & QoS** | PPE shaper through `tc` qdisc offload: `hw_ppe.qos` in `sqm-scripts`, `luci-app-sqm`, `ppe-qos`, `luci-app-ppe-qos` (with PL translation) |
-| **Wi-Fi** | `kmod-nss-wifi-drv` + `ath11k-firmware-ipq8074` (NSS Wi-Fi data path), `kmod-ath10k-ct-smallbuffers` (IoT radio), full `wpad-mbedtls`, `usteer`, `mesh11sd` |
+| **Bridge, multicast** | PPE through switchdev, IGMP/MLD snooping, kernel multicast routing enabled + `igmpproxy` |
+| **SQM & QoS** | PPE shaper through `tc` qdisc offload: `hw_ppe.qos` in `sqm-scripts`, `luci-app-sqm`, `ppe-qos`, `luci-app-ppe-qos` (with PL translation), `dcb`, `tc-full`, `ethtool-full`, `devlink` |
+| **Wi-Fi** | `kmod-nss-wifi-drv` + `ath11k-firmware-ipq8074` (NSS Wi-Fi data path on by default, carries both NSS FW 12.5 and 11.4), `kmod-ath10k-ct-smallbuffers` (IoT radio), full `wpad-mbedtls`, `usteer`, `mesh11sd` |
 | **eko.one.pl & LuCI** | `ekooneplconfigs`, `ekooneplstat`, `luci-app-ekooneplstat`, `sysinfo`, `owut`, `luci-mod-dashboard`, `luci-app-adblock`, `luci-app-ddns`, `luci-app-nlbwmon`, `luci-app-vnstat2`, `luci-app-statistics`, `luci-app-ttyd`, `luci-app-upnp`, `luci-app-wol`, `luci-app-wifischedule`, `luci-app-commands`, full Polish language pack (`CONFIG_LUCI_LANG_pl=y`) |
-| **Base & CLI tools** | Dropbear, mbedTLS (`apk-mbedtls`, `libustream-mbedtls`), LuCI over HTTPS, BCP38, `mc`, `htop`, `bmon`, `nano`, `iperf3`, `curl`, `ethtool`, `qca-ssdk-shell` |
+| **Base & Diagnostics** | Dropbear, mbedTLS (`apk-mbedtls`, `libustream-mbedtls`), LuCI over HTTPS, BCP38, `ppe-help`, `kmod-ramoops` (`/root/pstore`), `mc`, `htop`, `bmon`, `nano`, `iperf3`, `curl`, `qca-ssdk-shell` |
 | **Toolchain** | GCC 15, Binutils 2.46, mold, LTO, PIE/SSP/FORTIFY_SOURCE=3/RELRO |
 
 All compiled `.apk` packages from the build are also archived into
@@ -112,16 +119,9 @@ build locally:
 
 ```sh
 git clone --branch ppe-nss https://github.com/JuliusBairaktaris/openwrt-ppe-nss openwrt
-git clone https://github.com/JuliusBairaktaris/Qualcommax_NSS_Builder builder
+git clone https://github.com/Payti/Qualcommax_PPE-NSS_Builder_Xiaomi_AX3600_eko.one.pl_packages builder
 cd openwrt
-cp feeds.conf.default feeds.conf
-echo "src-git nss https://github.com/JuliusBairaktaris/nss-packages.git;edma-nss" >> feeds.conf
-echo "src-git obsy https://github.com/obsy/packages" >> feeds.conf
-sed -i 's|^src-git luci .*|src-git luci https://github.com/JuliusBairaktaris/luci.git;luci-app-ppe-qos|' feeds.conf
-./scripts/feeds update -a && ./scripts/feeds install -a
-
-patch -d feeds/packages -p1 < ../builder/patches/feeds/ppe-nss/packages/0001-*.patch
-cat ../builder/devices/common/config ../builder/devices/xiaomi_ax3600/config > .config
+OPENWRT_DIR="$PWD" BUILDER_REPO="$PWD/../builder" DEVICE="xiaomi_ax3600" VARIANT="ppe-nss" RUN_FEEDS_IN_PREPARE=1 bash ../builder/scripts/prepare-build.sh
 make defconfig && make -j"$(nproc)"
 ```
 
@@ -149,8 +149,8 @@ make defconfig && make -j"$(nproc)"
 - [Robert Marko (robimarko)](https://github.com/robimarko) for maintaining the
   OpenWrt qualcommax target.
 - [qosmio](https://github.com/qosmio) for NSS development, the
-  [openwrt-ipq](https://github.com/qosmio/openwrt-ipq) tree and the Wi-Fi
-  offload patches.
+  [openwrt-ipq](https://github.com/qosmio/openwrt-ipq) tree and the NSS
+  firmware packaging.
 - [rodriguezst](https://github.com/rodriguezst) for the original
   [ipq807x-openwrt-builder](https://github.com/rodriguezst/ipq807x-openwrt-builder).
 - The OpenWrt community in the

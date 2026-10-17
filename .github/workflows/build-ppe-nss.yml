@@ -1,7 +1,7 @@
 name: Build PPE-NSS
 
-# Builds the PPE-NSS and PPE-NSS-MESH images for the Xiaomi AX3600:
-#   check -> build (matrix: ppe-nss, ppe-nss-mesh) -> prune
+# Builds the unified PPE-NSS image (carrying both NSS FW 12.5 and 11.4) for Xiaomi AX3600:
+#   check -> build -> prune
 on:
   workflow_dispatch:
     inputs:
@@ -36,11 +36,12 @@ env:
   NSS_REPO: JuliusBairaktaris/nss-packages
   NSS_REF: edma-nss
   VARIANT: ppe-nss
+  NSS_FW_LABEL: "11.4 and 12.5"
   TARGET: qualcommax/ipq807x
   DEVICE: xiaomi_ax3600
   DEVICE_DIR: devices/xiaomi_ax3600
   RELEASE_PREFIX: ppe-nss
-  KEEP: "4"
+  KEEP: "2"
   FEEDS: |
     src-git nss https://github.com/JuliusBairaktaris/nss-packages.git;edma-nss
     src-git luci https://github.com/JuliusBairaktaris/luci.git;luci-app-ppe-qos
@@ -65,29 +66,15 @@ jobs:
         run: bash scripts/check-updates.sh
 
   build:
-    name: Build OpenWrt (${{ matrix.variant }})
+    name: Build OpenWrt (ppe-nss)
     needs: check
     if: needs.check.outputs.need == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 360
     permissions:
       contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - variant: ppe-nss
-            nss_fw: "12.5"
-            mesh_support: "no"
-            title_label: "PPE-NSS (NSS FW 12.5 + 11.4) "
-          - variant: ppe-nss-mesh
-            nss_fw: "11.4"
-            mesh_support: "yes"
-            title_label: "PPE-NSS MESH (NSS FW 11.4) "
     env:
       GH_TOKEN: ${{ github.token }}
-      VARIANT: ${{ matrix.variant }}
-      NSS_FW_VERSION: ${{ matrix.nss_fw }}
     steps:
       - name: Install build dependencies
         run: |
@@ -134,7 +121,7 @@ jobs:
           chmod +x builder/scripts/prepare-build.sh
           bash builder/scripts/prepare-build.sh
 
-      - name: Finalize feeds, Polish i18n, TEE and variant config (${{ matrix.variant }})
+      - name: Finalize feeds, Polish i18n, TEE and config
         run: |
           set -euo pipefail
           OPENWRT_DIR="${{ github.workspace }}/openwrt"
@@ -150,24 +137,13 @@ jobs:
             cp "$DEVICE_CONFIG" "$OPENWRT_CONFIG"
           fi
 
-          # 1. Konfiguracja wariantu: ppe-nss (FW 12.5) vs ppe-nss-mesh (FW 11.4 + Mesh)
-          sed -i '/CONFIG_NSS_FIRMWARE_VERSION_12_5/d' "$OPENWRT_CONFIG"
-          sed -i '/CONFIG_NSS_FIRMWARE_VERSION_11_4/d' "$OPENWRT_CONFIG"
-          sed -i '/CONFIG_ATH11K_NSS_MESH_SUPPORT/d' "$OPENWRT_CONFIG"
-
-          if [ "${{ matrix.mesh_support }}" = "yes" ]; then
-            echo "--> Konfiguracja wariantu ppe-nss-mesh (NSS FW 11.4 + ATH11K_NSS_MESH_SUPPORT)"
-            printf '%s\n' \
-              '# CONFIG_NSS_FIRMWARE_VERSION_12_5 is not set' \
-              'CONFIG_NSS_FIRMWARE_VERSION_11_4=y' \
-              'CONFIG_ATH11K_NSS_MESH_SUPPORT=y' >> "$OPENWRT_CONFIG"
-          else
-            echo "--> Konfiguracja wariantu ppe-nss (NSS FW 12.5)"
-            printf '%s\n' \
-              'CONFIG_NSS_FIRMWARE_VERSION_12_5=y' \
-              '# CONFIG_NSS_FIRMWARE_VERSION_11_4 is not set' \
-              '# CONFIG_ATH11K_NSS_MESH_SUPPORT is not set' >> "$OPENWRT_CONFIG"
-          fi
+          # 1. Konfiguracja ujednoliconego wariantu ppe-nss (zawiera FW 12.5 oraz 11.4)
+          sed -i '/CONFIG_NSS_FIRMWARE_VERSION_/d' "$OPENWRT_CONFIG"
+          sed -i '/CONFIG_ATH11K_NSS_/d' "$OPENWRT_CONFIG"
+          printf '%s\n' \
+            'CONFIG_PACKAGE_kmod-nss-wifi-drv=y' \
+            'CONFIG_ATH11K_NSS_WIFI=y' \
+            'CONFIG_NSS_FIRMWARE_VERSION_12_5=y' >> "$OPENWRT_CONFIG"
 
           # 2. Dopisanie deklaracji jądra TEE do config-6.18
           KERNEL_CONFIG_TARGET=$(find "${OPENWRT_DIR}/target/linux/qualcommax/" -name "config-6.18" | head -n 1)
@@ -228,19 +204,19 @@ jobs:
           CURRENT_BUILD_TIME=$(date -u +"%Y-%m-%d %H:%M UTC")
 
           if [ -f files/etc/banner ]; then
-            VERSION_LINE="OpenWrt SNAPSHOT, ${OPENWRT_VERSION_RAW} (${{ matrix.variant }}, FW ${{ matrix.nss_fw }})"
+            VERSION_LINE="OpenWrt SNAPSHOT, ${OPENWRT_VERSION_RAW} (${{ env.VARIANT }}, FW ${{ env.NSS_FW_LABEL }})"
             DATE_LINE="Build time: $CURRENT_BUILD_TIME"
 
-            VERSION_PADDING=$(printf '%-74s' "$VERSION_LINE")
+            VERSION_PADDING=$(printf '\%-74s' "$VERSION_LINE")
             FINAL_VERSION_ROW=" | ${VERSION_PADDING}|"
 
-            DATE_PADDING=$(printf '%-74s' "$DATE_LINE")
+            DATE_PADDING=$(printf '\%-74s' "$DATE_LINE")
             FINAL_DATE_ROW=" | ${DATE_PADDING}|"
 
             sed -i "s#.*VERSION_PLACEHOLDER.*#$FINAL_VERSION_ROW#g" files/etc/banner
             sed -i "s#.*DATE_PLACEHOLDER.*#$FINAL_DATE_ROW#g" files/etc/banner
 
-            echo "Successfully injected real git version and build time into ${{ matrix.variant }} banner."
+            echo "Successfully injected real git version and build time into ${{ env.VARIANT }} banner."
           else
             echo "::warning::Custom banner file was not deployed by prepare-build.sh to openwrt/files/etc/banner"
             VERSION_LINE="OpenWrt SNAPSHOT"
@@ -250,14 +226,14 @@ jobs:
           fi
 
           TARGET_RELEASE_FILE="package/base-files/files/etc/openwrt_release"
-          DISTRIB_DESCRIPTION="${OPENWRT_VERSION} (${{ matrix.variant }} [NSS FW ${{ matrix.nss_fw }}] build by @Payti)"
+          DISTRIB_DESCRIPTION="${OPENWRT_VERSION} (${{ env.VARIANT }} [NSS FW ${{ env.NSS_FW_LABEL }}] build by @Payti)"
           if [ -f "$TARGET_RELEASE_FILE" ]; then
             sed -i '/DISTRIB_DESCRIPTION=/d' "$TARGET_RELEASE_FILE" || true
             echo "DISTRIB_DESCRIPTION='${DISTRIB_DESCRIPTION}'" >> "$TARGET_RELEASE_FILE"
           fi
 
           echo "=================================================="
-          echo "VARIANT:                ${{ matrix.variant }} (NSS FW ${{ matrix.nss_fw }})"
+          echo "VARIANT:                ${{ env.VARIANT }} (NSS FW ${{ env.NSS_FW_LABEL }})"
           echo "OPENWRT_VERSION:        $OPENWRT_VERSION"
           echo "CURRENT_BUILD_TIME:     $CURRENT_BUILD_TIME"
           echo "VERSION_LINE:           ${VERSION_LINE:-}"
@@ -295,7 +271,7 @@ jobs:
             echo "Download attempt $attempt failed; retrying..."
             sleep 5
           done
-          echo "grew=$(($(find dl -maxdepth 1 -type f | wc -l) > before))" >>"$GITHUB_OUTPUT"
+          echo "grew=$(($(find dl -maxdepth 1 -type f \vert{} wc -l) > before))" >>"$GITHUB_OUTPUT"
 
       - name: Save sources
         if: steps.download.outputs.grew == 1
@@ -314,7 +290,7 @@ jobs:
             grep -E '^CONFIG_(BINUTILS|GCC|LIBC|MUSL|GLIBC)_' openwrt/.config
             gcc --version; as --version
           } | sha256sum | cut -c1-16)
-          echo "prefix=ccache-${{ matrix.variant }}-$sum-" >>"$GITHUB_OUTPUT"
+          echo "prefix=ccache-${{ env.VARIANT }}-$sum-" >>"$GITHUB_OUTPUT"
 
       - name: Restore ccache
         uses: actions/cache@v4
@@ -336,12 +312,15 @@ jobs:
       - name: Pack APK Packages
         working-directory: openwrt
         run: |
-          echo "### Pakowanie skompilowanych pakietów .apk (${{ matrix.variant }}) ###"
+          echo "### Pakowanie skompilowanych pakietów .apk (${{ env.VARIANT }}) ###"
           if [ -d "bin/packages" ]; then
             tar -czf bin/targets/${{ env.TARGET }}/compiled_packages.tar.gz -C bin packages
+            echo "-> Pakiety zostały pomyślnie spakowane do compiled_packages.tar.gz"
+          else
+            echo "-> OSTRZEŻENIE: Nie znaleziono katalogu bin/packages!"
           fi
 
-      - name: Publish release (${{ matrix.variant }})
+      - name: Publish release
         id: release
         env:
           UPSTREAM_SHA: ${{ needs.check.outputs.upstream_sha }}
@@ -350,15 +329,15 @@ jobs:
           set -euo pipefail
           date=$(date -u +%F)
           timestamp=$(date -u +%Y%m%dT%H%M%SZ)
-          tag_name="${{ matrix.variant }}-${timestamp}-${GITHUB_RUN_ID}-offload"
+          tag_name="${{ env.VARIANT }}-${timestamp}-${GITHUB_RUN_ID}-offload"
           echo "release_tag=$tag_name" >>"$GITHUB_OUTPUT"
 
           {
-            echo "## OpenWrt Build — ${{ matrix.title_label }}"
+            echo "## OpenWrt Build — PPE-NSS (NSS FW ${{ env.NSS_FW_LABEL }})"
             echo "- **Date**: $date"
-            echo "- **Variant**: \`${{ matrix.variant }}\`"
-            echo "- **NSS Firmware**: \`${{ matrix.nss_fw }}\` (carries both 12.5 and 11.4; switch with \`uci set nss-wifi.general.firmware=11.4; uci commit nss-wifi; reboot\`)"
-            echo "- **802.11s NSS Mesh Offload**: \`${{ matrix.mesh_support }}\`"
+            echo "- **Variant**: \`${{ env.VARIANT }}\`"
+            echo "- **NSS Firmware**: \`12.5\` (default) and \`11.4.0.5\` (for 802.11s mesh)"
+            echo "- **Switch to 11.4 (Mesh)**: \`uci set nss-wifi.general.firmware=11.4; uci commit nss-wifi; reboot\`"
             echo "- **Device**: \`${{ env.DEVICE }}\`"
             echo "- **Target**: \`${{ env.TARGET }}\`"
             echo "- **Upstream**: \`${{ env.UPSTREAM_REPO }}@${UPSTREAM_SHA}\` (branch \`${{ env.UPSTREAM_REF }}\`)"
@@ -375,16 +354,23 @@ jobs:
             clean_base="${base#ppe-nss-mesh-}"
             clean_base="${clean_base#ppe-nss-}"
             clean_base="${clean_base#ppe-}"
-            mv "$asset" "$dir/${{ matrix.variant }}-$clean_base"
+            mv "$asset" "$dir/${{ env.VARIANT }}-$clean_base"
           done
 
           mapfile -t renamed_assets < <(find "openwrt/bin/targets/${TARGET}/" -type f -not -path "*/packages/*")
 
           gh release create "$tag_name" \
             --repo "$GITHUB_REPOSITORY" \
-            --title "OpenWrt ${{ matrix.title_label }}$date" \
+            --title "OpenWrt PPE-NSS (NSS FW ${{ env.NSS_FW_LABEL }})$date" \
             --notes-file release_notes.md \
             "${renamed_assets[@]}"
+
+          {
+            echo "## Release (${{ env.VARIANT }})"
+            echo "- tag: \`${tag_name}\`"
+            echo "- NSS FW: \`${{ env.NSS_FW_LABEL }}\`"
+            echo "- assets: ${#renamed_assets[@]}"
+          } >>"$GITHUB_STEP_SUMMARY"
 
   prune:
     name: Prune old releases
@@ -396,6 +382,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
+      KEEP_PER_VARIANT: ${{ env.KEEP }}
     steps:
       - uses: actions/checkout@v7
       - name: Prune
