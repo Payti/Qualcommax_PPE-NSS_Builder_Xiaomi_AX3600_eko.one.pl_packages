@@ -1,0 +1,20 @@
+#!/bin/sh
+# Apply opinionated defaults once and record that in uci, so user changes
+# survive subsequent sysupgrades.
+[ "$(uci -q get system.@system[0].qol_defaults)" = 1 ] && exit 0
+
+uci -q batch << EOI
+set firewall.@zone[1].input='DROP'
+set bcp38.cfg018e45.enabled='1'
+set bcp38.cfg018e45.interface='wan'
+set system.ntp.enable_server='1'
+set uhttpd.main.redirect_https='1'
+EOI
+
+lan_ip=$(uci -q get network.lan.ipaddr)
+[ -n "$lan_ip" ] && ! uci -q get dhcp.lan.dhcp_option | tr ' ' '\n' | grep -q '^42,' \
+	&& uci -q add_list dhcp.lan.dhcp_option="42,${lan_ip%%/*}"
+
+uci -q set system.@system[0].qol_defaults='1'
+uci -q commit
+exit 0

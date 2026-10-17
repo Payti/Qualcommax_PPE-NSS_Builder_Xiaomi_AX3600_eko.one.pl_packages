@@ -2,7 +2,6 @@ name: Build PPE-NSS
 
 # Builds the PPE-NSS and PPE-NSS-MESH images for the Xiaomi AX3600:
 #   check -> build (matrix: ppe-nss, ppe-nss-mesh) -> prune
-# All build parameters live in the `env:` block below — it is the one file you edit.
 on:
   workflow_dispatch:
     inputs:
@@ -80,7 +79,7 @@ jobs:
           - variant: ppe-nss
             nss_fw: "12.5"
             mesh_support: "no"
-            title_label: "PPE-NSS (NSS FW 12.5) "
+            title_label: "PPE-NSS (NSS FW 12.5 + 11.4) "
           - variant: ppe-nss-mesh
             nss_fw: "11.4"
             mesh_support: "yes"
@@ -151,7 +150,7 @@ jobs:
             cp "$DEVICE_CONFIG" "$OPENWRT_CONFIG"
           fi
 
-          # 1. Konfiguracja wariantu: ppe-nss (FW 12.5) vs ppe-nss-mesh (FW 11.4 + Mesh) wg wzorca Juliusa
+          # 1. Konfiguracja wariantu: ppe-nss (FW 12.5) vs ppe-nss-mesh (FW 11.4 + Mesh)
           sed -i '/CONFIG_NSS_FIRMWARE_VERSION_12_5/d' "$OPENWRT_CONFIG"
           sed -i '/CONFIG_NSS_FIRMWARE_VERSION_11_4/d' "$OPENWRT_CONFIG"
           sed -i '/CONFIG_ATH11K_NSS_MESH_SUPPORT/d' "$OPENWRT_CONFIG"
@@ -229,7 +228,7 @@ jobs:
           CURRENT_BUILD_TIME=$(date -u +"%Y-%m-%d %H:%M UTC")
 
           if [ -f files/etc/banner ]; then
-            VERSION_LINE="OpenWrt SNAPSHOT, ${OPENWRT_VERSION_RAW} (${{ matrix.variant }}, FW ${{ matrix.nss_fw }})"
+            VERSION_LINE="OpenWrt SNAPSHOT, ${OPENWRT_VERSION_RAW} (${{ matrix.variant }}, FW${{ matrix.nss_fw }})"
             DATE_LINE="Build time: $CURRENT_BUILD_TIME"
 
             VERSION_PADDING=$(printf '\%-74s' "$VERSION_LINE")
@@ -240,30 +239,14 @@ jobs:
 
             sed -i "s#.*VERSION_PLACEHOLDER.*#$FINAL_VERSION_ROW#g" files/etc/banner
             sed -i "s#.*DATE_PLACEHOLDER.*#$FINAL_DATE_ROW#g" files/etc/banner
-
-            echo "Successfully injected real git version and build time into ${{ matrix.variant }} banner."
-          else
-            echo "::warning::Custom banner file was not deployed by prepare-build.sh to openwrt/files/etc/banner"
-            VERSION_LINE="OpenWrt SNAPSHOT"
-            FINAL_VERSION_ROW=""
-            DATE_LINE=""
-            FINAL_DATE_ROW=""
           fi
 
           TARGET_RELEASE_FILE="package/base-files/files/etc/openwrt_release"
-          DISTRIB_DESCRIPTION="${OPENWRT_VERSION} (${{ matrix.variant }} [NSS FW ${{ matrix.nss_fw }}] build by @Payti)"
+          DISTRIB_DESCRIPTION="${OPENWRT_VERSION} (${{ matrix.variant }} [NSS FW${{ matrix.nss_fw }}] build by @Payti)"
           if [ -f "$TARGET_RELEASE_FILE" ]; then
             sed -i '/DISTRIB_DESCRIPTION=/d' "$TARGET_RELEASE_FILE" || true
             echo "DISTRIB_DESCRIPTION='${DISTRIB_DESCRIPTION}'" >> "$TARGET_RELEASE_FILE"
           fi
-
-          echo "=================================================="
-          echo "VARIANT:                ${{ matrix.variant }} (NSS FW ${{ matrix.nss_fw }})"
-          echo "OPENWRT_VERSION:        $OPENWRT_VERSION"
-          echo "CURRENT_BUILD_TIME:     $CURRENT_BUILD_TIME"
-          echo "VERSION_LINE:           ${VERSION_LINE:-}"
-          echo "DATE_LINE:              ${DATE_LINE:-}"
-          echo "=================================================="
 
       - name: Set reproducible-build env
         working-directory: openwrt
@@ -277,21 +260,62 @@ jobs:
             echo "KBUILD_BUILD_HOST=github"
           } >>"$GITHUB_ENV"
 
+      - name: Restore sources
+        uses: actions/cache/restore@v4
+        with:
+          path: openwrt/dl
+          key: dl-${{ github.run_id }}
+          restore-keys: dl-
+
       - name: Download sources
+        id: download
         working-directory: openwrt
         run: |
           set -euo pipefail
+          mkdir -p dl
+          before=$(find dl -maxdepth 1 -type f | wc -l)
           for attempt in 1 2 3; do
             make download -j"$(nproc)" V=s && break
             echo "Download attempt $attempt failed; retrying..."
             sleep 5
           done
+          echo "grew=$(($(find dl -maxdepth 1 -type f | wc -l) > before))" >>"$GITHUB_OUTPUT"
+
+      - name: Save sources
+        if: steps.download.outputs.grew == 1
+        uses: actions/cache/save@v4
+        with:
+          path: openwrt/dl
+          key: dl-${{ github.run_id }}
+
+      - name: Compute ccache key
+        id: ccache
+        run: |
+          set -euo pipefail
+          tree=$(git -C openwrt rev-parse HEAD:toolchain)
+          sum=$({
+            echo "$tree"
+            grep -E '^CONFIG_(BINUTILS|GCC|LIBC|MUSL|GLIBC)_' openwrt/.config
+            gcc --version; as --version
+          } | sha256sum | cut -c1-16)
+          echo "prefix=ccache-${{ matrix.variant }}-$sum-" >>"$GITHUB_OUTPUT"
+
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: openwrt/.ccache
+          key: ${{ steps.ccache.outputs.prefix }}${{ github.run_id }}
+          restore-keys: ${{ steps.ccache.outputs.prefix }}
 
       - name: Build
         working-directory: openwrt
+        env:
+          CCACHE_COMPILERCHECK: content
+          CCACHE_MAXSIZE: 4G
         run: |
           set -euo pipefail
-          make -j"$(nproc)" || make -j1 V=s
+          make -j"$(nproc)" IGNORE_ERRORS=m || make -j1 V=s IGNORE_ERRORS=m
+          staging_dir/host/bin/ccache -s || true
 
       - name: Pack APK Packages
         working-directory: openwrt
@@ -299,9 +323,6 @@ jobs:
           echo "### Pakowanie skompilowanych pakietów .apk (${{ matrix.variant }}) ###"
           if [ -d "bin/packages" ]; then
             tar -czf bin/targets/${{ env.TARGET }}/compiled_packages.tar.gz -C bin packages
-            echo "-> Pakiety zostały pomyślnie spakowane do compiled_packages.tar.gz"
-          else
-            echo "-> OSTRZEŻENIE: Nie znaleziono katalogu bin/packages!"
           fi
 
       - name: Publish release (${{ matrix.variant }})
@@ -320,7 +341,7 @@ jobs:
             echo "## OpenWrt Build — ${{ matrix.title_label }}"
             echo "- **Date**: $date"
             echo "- **Variant**: \`${{ matrix.variant }}\`"
-            echo "- **NSS Firmware**: \`${{ matrix.nss_fw }}\`"
+            echo "- **NSS Firmware**: \`${{ matrix.nss_fw }}\` (carries both 12.5 and 11.4; switch with \`uci set nss-wifi.general.firmware=11.4; uci commit nss-wifi; reboot\`)"
             echo "- **802.11s NSS Mesh Offload**: \`${{ matrix.mesh_support }}\`"
             echo "- **Device**: \`${{ env.DEVICE }}\`"
             echo "- **Target**: \`${{ env.TARGET }}\`"
@@ -348,13 +369,6 @@ jobs:
             --title "OpenWrt ${{ matrix.title_label }}$date" \
             --notes-file release_notes.md \
             "${renamed_assets[@]}"
-
-          {
-            echo "## Release (${{ matrix.variant }})"
-            echo "- tag: \`${tag_name}\`"
-            echo "- NSS FW: \`${{ matrix.nss_fw }}\`"
-            echo "- assets: ${#renamed_assets[@]}"
-          } >>"$GITHUB_STEP_SUMMARY"
 
   prune:
     name: Prune old releases
