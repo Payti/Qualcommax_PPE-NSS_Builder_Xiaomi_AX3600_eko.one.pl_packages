@@ -73,14 +73,14 @@ Firewall → Hardware flow offloading). Check active hardware flows in PPE with:
 grep -c HW_OFFLOAD /proc/net/nf_conntrack
 ```
 
-The NSS Wi-Fi offload (`kmod-nss-wifi-drv`) is enabled by default. To disable
+The NSS Wi-Fi offload (`kmod-nss-wifi-drv`) can be toggled in `/etc/nss-wifi`. To disable
 it and fall back to the host CPU path:
 
 ```sh
 uci set nss-wifi.general.offload='0'; uci commit nss-wifi; reboot
 ```
 
-The flag is cleared while the offload starts and set again two minutes after
+The service clears the flag while the offload starts and sets it again two minutes after
 the firmware has taken the data plane, so a boot that hangs falls back to the
 host Wi-Fi path on the next boot. `logread -e nss-wifi` shows the bring-up.
 
@@ -97,7 +97,7 @@ Set up queue classifiers under **Network → PPE QoS** (`luci-app-ppe-qos`).
 | **Routing, NAT** | PPE through the `fw4` flowtable: IPv4/IPv6, NAT, PPPoE, 802.1Q VLAN, DS-Lite, MAP, WireGuard, GRE, VXLAN, L2TP |
 | **Bridge, multicast** | PPE through switchdev, multicast snooping + `igmpproxy` |
 | **SQM & QoS** | PPE shaper through `tc` qdisc offload: `hw_ppe.qos` in `sqm-scripts`, `luci-app-sqm`, `ppe-qos`, `luci-app-ppe-qos` (with PL translation) |
-| **Wi-Fi** | `kmod-nss-wifi-drv` + `ath11k-firmware-ipq8074` (NSS Wi-Fi data path on by default), `kmod-ath10k-ct-smallbuffers` (IoT radio), full `wpad-mbedtls`, `usteer`, `mesh11sd` |
+| **Wi-Fi** | `kmod-nss-wifi-drv` + `ath11k-firmware-ipq8074` (NSS Wi-Fi data path), `kmod-ath10k-ct-smallbuffers` (IoT radio), full `wpad-mbedtls`, `usteer`, `mesh11sd` |
 | **eko.one.pl & LuCI** | `ekooneplconfigs`, `ekooneplstat`, `luci-app-ekooneplstat`, `sysinfo`, `owut`, `luci-mod-dashboard`, `luci-app-adblock`, `luci-app-ddns`, `luci-app-nlbwmon`, `luci-app-vnstat2`, `luci-app-statistics`, `luci-app-ttyd`, `luci-app-upnp`, `luci-app-wol`, `luci-app-wifischedule`, `luci-app-commands`, full Polish language pack (`CONFIG_LUCI_LANG_pl=y`) |
 | **Base & CLI tools** | Dropbear, mbedTLS (`apk-mbedtls`, `libustream-mbedtls`), LuCI over HTTPS, BCP38, `mc`, `htop`, `bmon`, `nano`, `iperf3`, `curl`, `ethtool`, `qca-ssdk-shell` |
 | **Toolchain** | GCC 15, Binutils 2.46, mold, LTO, PIE/SSP/FORTIFY_SOURCE=3/RELRO |
@@ -112,6 +112,7 @@ build locally:
 
 ```sh
 git clone --branch ppe-nss https://github.com/JuliusBairaktaris/openwrt-ppe-nss openwrt
+git clone https://github.com/JuliusBairaktaris/Qualcommax_NSS_Builder builder
 cd openwrt
 cp feeds.conf.default feeds.conf
 echo "src-git nss https://github.com/JuliusBairaktaris/nss-packages.git;edma-nss" >> feeds.conf
@@ -119,20 +120,16 @@ echo "src-git obsy https://github.com/obsy/packages" >> feeds.conf
 sed -i 's|^src-git luci .*|src-git luci https://github.com/JuliusBairaktaris/luci.git;luci-app-ppe-qos|' feeds.conf
 ./scripts/feeds update -a && ./scripts/feeds install -a
 
-B=../Qualcommax_PPE-NSS_Builder_Xiaomi_AX3600_eko.one.pl_packages
-for p in "$B"/patches/feeds/ppe/packages/*.patch "$B"/patches/feeds/ppe-nss/packages/*.patch; do
-  [ -f "$p" ] && patch -d feeds/packages -p1 --forward < "$p"
-done
-cp "$B/devices/xiaomi_ax3600/config" .config
+patch -d feeds/packages -p1 < ../builder/patches/feeds/ppe-nss/packages/0001-*.patch
+cat ../builder/devices/common/config ../builder/devices/xiaomi_ax3600/config > .config
 make defconfig && make -j"$(nproc)"
 ```
 
 > [!IMPORTANT]
-> `ppe-nss` is rebased regularly, `git pull` nie aktualizuje go automatycznie. Użyj:
+> `ppe-nss` is rebased regularly, `git pull` does not update it automatically. Use:
 >
 > ```sh
 > git fetch origin && git reset --hard origin/ppe-nss
-> rm -rf feeds/nss package/feeds/nss
 > ./scripts/feeds update -a && ./scripts/feeds install -a
 > make defconfig
 > ```
