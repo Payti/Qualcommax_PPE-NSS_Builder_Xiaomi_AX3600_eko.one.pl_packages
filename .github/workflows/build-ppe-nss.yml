@@ -228,25 +228,41 @@ jobs:
           CURRENT_BUILD_TIME=$(date -u +"%Y-%m-%d %H:%M UTC")
 
           if [ -f files/etc/banner ]; then
-            VERSION_LINE="OpenWrt SNAPSHOT, ${OPENWRT_VERSION_RAW} (${{ matrix.variant }}, FW${{ matrix.nss_fw }})"
+            VERSION_LINE="OpenWrt SNAPSHOT, ${OPENWRT_VERSION_RAW} (${{ matrix.variant }}, FW ${{ matrix.nss_fw }})"
             DATE_LINE="Build time: $CURRENT_BUILD_TIME"
 
-            VERSION_PADDING=$(printf '\%-74s' "$VERSION_LINE")
+            VERSION_PADDING=$(printf '%-74s' "$VERSION_LINE")
             FINAL_VERSION_ROW=" | ${VERSION_PADDING}|"
 
-            DATE_PADDING=$(printf '\%-74s' "$DATE_LINE")
+            DATE_PADDING=$(printf '%-74s' "$DATE_LINE")
             FINAL_DATE_ROW=" | ${DATE_PADDING}|"
 
             sed -i "s#.*VERSION_PLACEHOLDER.*#$FINAL_VERSION_ROW#g" files/etc/banner
             sed -i "s#.*DATE_PLACEHOLDER.*#$FINAL_DATE_ROW#g" files/etc/banner
+
+            echo "Successfully injected real git version and build time into ${{ matrix.variant }} banner."
+          else
+            echo "::warning::Custom banner file was not deployed by prepare-build.sh to openwrt/files/etc/banner"
+            VERSION_LINE="OpenWrt SNAPSHOT"
+            FINAL_VERSION_ROW=""
+            DATE_LINE=""
+            FINAL_DATE_ROW=""
           fi
 
           TARGET_RELEASE_FILE="package/base-files/files/etc/openwrt_release"
-          DISTRIB_DESCRIPTION="${OPENWRT_VERSION} (${{ matrix.variant }} [NSS FW${{ matrix.nss_fw }}] build by @Payti)"
+          DISTRIB_DESCRIPTION="${OPENWRT_VERSION} (${{ matrix.variant }} [NSS FW ${{ matrix.nss_fw }}] build by @Payti)"
           if [ -f "$TARGET_RELEASE_FILE" ]; then
             sed -i '/DISTRIB_DESCRIPTION=/d' "$TARGET_RELEASE_FILE" || true
             echo "DISTRIB_DESCRIPTION='${DISTRIB_DESCRIPTION}'" >> "$TARGET_RELEASE_FILE"
           fi
+
+          echo "=================================================="
+          echo "VARIANT:                ${{ matrix.variant }} (NSS FW ${{ matrix.nss_fw }})"
+          echo "OPENWRT_VERSION:        $OPENWRT_VERSION"
+          echo "CURRENT_BUILD_TIME:     $CURRENT_BUILD_TIME"
+          echo "VERSION_LINE:           ${VERSION_LINE:-}"
+          echo "DATE_LINE:              ${DATE_LINE:-}"
+          echo "=================================================="
 
       - name: Set reproducible-build env
         working-directory: openwrt
