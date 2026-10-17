@@ -271,7 +271,7 @@ jobs:
             echo "Download attempt $attempt failed; retrying..."
             sleep 5
           done
-          echo "grew=$(($(find dl -maxdepth 1 -type f \vert{} wc -l) > before))" >>"$GITHUB_OUTPUT"
+          echo "grew=$(($(find dl -maxdepth 1 -type f | wc -l) > before))" >>"$GITHUB_OUTPUT"
 
       - name: Save sources
         if: steps.download.outputs.grew == 1
@@ -382,7 +382,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
-      KEEP_PER_VARIANT: ${{ env.KEEP }}
+      KEEP_PER_VARIANT: "2"
     steps:
       - uses: actions/checkout@v7
       - name: Prune
