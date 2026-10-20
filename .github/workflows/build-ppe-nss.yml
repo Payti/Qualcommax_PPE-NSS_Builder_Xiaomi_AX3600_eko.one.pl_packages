@@ -253,7 +253,7 @@ jobs:
           } >>"$GITHUB_ENV"
 
       - name: Restore sources
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: openwrt/dl
           key: dl-${{ github.run_id }}
@@ -275,7 +275,7 @@ jobs:
 
       - name: Save sources
         if: steps.download.outputs.grew == 1
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: openwrt/dl
           key: dl-${{ github.run_id }}
@@ -293,7 +293,7 @@ jobs:
           echo "prefix=ccache-${{ env.VARIANT }}-$sum-" >>"$GITHUB_OUTPUT"
 
       - name: Restore ccache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: openwrt/.ccache
           key: ${{ steps.ccache.outputs.prefix }}${{ github.run_id }}
