@@ -74,8 +74,8 @@ CONFIG_LIBCURL_MBEDTLS=y
 ## PPE QoS, SQM & Traffic Control
 CONFIG_PACKAGE_sqm-scripts=y
 CONFIG_PACKAGE_luci-app-sqm=y
-CONFIG_PACKAGE_ppe-qos=y
-CONFIG_PACKAGE_luci-app-ppe-qos=y
+CONFIG_PACKAGE_qca-ppe-qos=y
+CONFIG_PACKAGE_luci-app-qca-ppe-qos=y
 CONFIG_PACKAGE_tc-full=y
 # CONFIG_PACKAGE_tc-tiny is not set
 CONFIG_PACKAGE_kmod-sched-flower=y
