@@ -95,7 +95,7 @@ Upgrade with a normal sysupgrade; settings may be kept. See the upstream
 - Turn hardware flow offloading on in Network -> Firewall if upgrading from `edma-nss`.
 - The legacy `nss` and `nssqos` configs are no longer read.
 - On the Xiaomi AX3600 image the `sqm.wan` section uses `hw_ppe.qos`.
-- Set up queue classifiers under **Network -> PPE QoS** (`luci-app-ppe-qos`).
+- Set up queue classifiers under **Network -> PPE QoS** (`luci-app-qca-ppe-qos`).
 
 ## What ships
 
@@ -103,7 +103,7 @@ Upgrade with a normal sysupgrade; settings may be kept. See the upstream
 |---|---|
 | **Routing, NAT** | PPE through the `fw4` flowtable: IPv4/IPv6, NAT, PPPoE, 802.1Q VLAN, DS-Lite, MAP, WireGuard, GRE, VXLAN, L2TP |
 | **Bridge, multicast** | PPE through switchdev, IGMP/MLD snooping, kernel multicast routing enabled + `igmpproxy` |
-| **SQM & QoS** | PPE shaper through `tc` qdisc offload: `hw_ppe.qos` in `sqm-scripts`, `luci-app-sqm`, `ppe-qos`, `luci-app-ppe-qos` (with PL translation), `dcb`, `tc-full`, `ethtool-full`, `devlink` |
+| **SQM & QoS** | PPE shaper through `tc` qdisc offload: `hw_ppe.qos` in `sqm-scripts`, `luci-app-sqm`, `qca-ppe-qos`, `luci-app-qca-ppe-qos` (with PL translation), `dcb`, `tc-full`, `ethtool-full`, `devlink` |
 | **Wi-Fi** | `kmod-nss-wifi-drv` + `ath11k-firmware-ipq8074` (NSS Wi-Fi data path on by default, carries both NSS FW 12.5 and 11.4), `kmod-ath10k-ct-smallbuffers` (IoT radio), full `wpad-mbedtls`, `usteer`, `mesh11sd` |
 | **eko.one.pl & LuCI** | `ekooneplconfigs`, `ekooneplstat`, `luci-app-ekooneplstat`, `sysinfo`, `owut`, `luci-mod-dashboard`, `luci-app-adblock`, `luci-app-ddns`, `luci-app-nlbwmon`, `luci-app-vnstat2`, `luci-app-statistics`, `luci-app-ttyd`, `luci-app-upnp`, `luci-app-wol`, `luci-app-wifischedule`, `luci-app-commands`, full Polish language pack (`CONFIG_LUCI_LANG_pl=y`) |
 | **Base & Diagnostics** | Dropbear, mbedTLS (`apk-mbedtls`, `libustream-mbedtls`), LuCI over HTTPS, BCP38, `ppe-help`, `kmod-ramoops` (`/root/pstore`), `mc`, `htop`, `bmon`, `nano`, `iperf3`, `curl`, `qca-ssdk-shell` |
