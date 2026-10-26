@@ -158,12 +158,12 @@ jobs:
 
           # 3. Systemowe scalenie polskich tłumaczeń i18n dla PPE-NSS
           SOURCE_PO_DIR="${{ github.workspace }}/builder/${{ env.DEVICE_DIR }}/po/pl"
-          PPE_LUCI_PO_SOURCE="$SOURCE_PO_DIR/luci-app-ppe-qos.po"
-          PPE_LUCI_APP_DIR=$(find "${OPENWRT_DIR}/feeds/luci" -type d -name "luci-app-ppe-qos" | head -n 1)
+          PPE_LUCI_PO_SOURCE="$SOURCE_PO_DIR/luci-app-qca-ppe-qos.po"
+          PPE_LUCI_APP_DIR=$(find "${OPENWRT_DIR}/feeds/luci" -type d -name "luci-app-qca-ppe-qos" | head -n 1)
           if [ -f "$PPE_LUCI_PO_SOURCE" ] && [ -n "$PPE_LUCI_APP_DIR" ] && [ -d "$PPE_LUCI_APP_DIR" ]; then
             mkdir -p "$PPE_LUCI_APP_DIR/po/pl"
-            cp "$PPE_LUCI_PO_SOURCE" "$PPE_LUCI_APP_DIR/po/pl/luci-app-ppe-qos.po"
-            echo "--> SUCCESS: Dodano polskie tłumaczenie luci-app-ppe-qos do feedu LuCI"
+            cp "$PPE_LUCI_PO_SOURCE" "$PPE_LUCI_APP_DIR/po/pl/luci-app-qca-ppe-qos.po"
+            echo "--> SUCCESS: Dodano polskie tłumaczenie luci-app-qca-ppe-qos do feedu LuCI"
           fi
 
           LUCI_BASE_PO="${OPENWRT_DIR}/feeds/luci/modules/luci-base/po/pl/base.po"
@@ -172,7 +172,7 @@ jobs:
           fi
 
           if [ -n "$LUCI_BASE_PO" ] && [ -f "$LUCI_BASE_PO" ]; then
-            for SOURCE_PO in "$SOURCE_PO_DIR/luci-app-ppe-qos.po" "$SOURCE_PO_DIR/luci-mod-status-nss.po"; do
+            for SOURCE_PO in "$SOURCE_PO_DIR/luci-app-qca-ppe-qos.po" "$SOURCE_PO_DIR/luci-mod-status-nss.po"; do
               if [ -f "$SOURCE_PO" ]; then
                 {
                   printf '\n'
