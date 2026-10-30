@@ -11,161 +11,179 @@ msgstr "PPE QoS"
 msgid "PPE Hardware QoS"
 msgstr "Sprzętowe QoS PPE"
 
-msgid "Which egress queue of the switch a flow rides. A marking rule puts a DSCP on the flow, a map turns that DSCP into an internal priority, and the priority picks the queue: priorities 4 and up are served past the bulk queue of a shaped port, so marked traffic keeps idle latency while the bulk queue stays deep enough for full throughput. Marking is done by the switch itself, so it reaches flows the PPE has offloaded. Shaper rates and the bulk queue depth belong to SQM (hw_ppe.qos)."
-msgstr "Określa, z której kolejki wyjściowej przełącznika korzysta dany strumień. Reguła znakowania ustawia DSCP dla strumienia, mapa zamienia DSCP na wewnętrzny priorytet, a priorytet wybiera kolejkę: priorytety od 4 wzwyż są obsługiwane poza kolejką masową kształtowanego portu, dzięki czemu oznaczony ruch zachowuje niskie opóźnienia, a kolejka masowa pozostaje wystarczająco głęboka dla pełnej przepustowości. Znakowanie wykonuje sam przełącznik, więc obejmuje również strumienie przekazane do sprzętowego offloadu PPE. Prędkość kształtowania i głębokość kolejki masowej należą do SQM (hw_ppe.qos)."
+msgid "Sorts traffic into the egress queues of the switch. Marking rules put a DSCP on a flow, the DSCP map turns a DSCP into a priority, and priorities 4 to 7 are served ahead of the bulk band of a shaped port. The switch does all of this itself, so it covers flows the PPE has offloaded. Shaper rates belong to SQM."
+msgstr "Sortuje ruch do kolejek wyjściowych przełącznika. Reguły znakowania nadają strumieniom wartość DSCP, mapa DSCP zamienia ją na priorytet, a priorytety od 4 do 7 są obsługiwane przed pasmem masowym (bulk) kształtowanego portu. Przełącznik wykonuje to samodzielnie, dzięki czemu obejmuje również strumienie przekazane do sprzętowego offloadu PPE. Prędkości kształtowania pasma (shaper) należą do SQM."
 
-msgid "Global"
-msgstr "Globalne"
+msgid "General Settings"
+msgstr "Ustawienia główne"
 
-msgid "Enable"
-msgstr "Włącz"
-
-msgid "Turns the whole configuration off without deleting it. The marking rules, the DSCP maps and the small-packet priority are all removed while this is off."
-msgstr "Wyłącza całą konfigurację bez jej usuwania. Reguły znakowania, mapy DSCP oraz priorytet małych pakietów zostają wycofane, dopóki ta opcja jest wyłączona."
-
-msgid "Mark upload"
-msgstr "Znakuj wysyłanie (upload)"
-
-msgid "Also installs every rule as written on each client-facing port, so the upload half is marked too. That costs a classifier entry per port instead of one on the uplink, and buys little: sparse upload traffic already takes the priority band as a small packet, and the ISP usually clears the mark."
-msgstr "Instaluje również każdą regułę bezpośrednio na każdym porcie klienckim, dzięki czemu znakowany jest także ruch wychodzący (upload). Zużywa to wpis klasyfikatora na każdym porcie zamiast jednego na porcie uplink i daje niewielką korzyść: drobny ruch wychodzący i tak trafia do pasma priorytetowego jako małe pakiety, a operator (ISP) zazwyczaj czyści oznaczenia DSCP."
-
-msgid "Small packet: maximum L3 length"
-msgstr "Mały pakiet: maksymalna długość L3"
-
-msgid "Frames up to this IP length take the priority below whatever their marking: ACKs, handshakes, DNS, VoIP and game traffic jump the bulk queue. 0 disables. The value has to stay under a full-size segment: a bulk segment that qualified would ride the priority band."
-msgstr "Ramki o długości IP do tej wartości otrzymują poniższy priorytet niezależnie od oznaczenia: pakiety ACK, uzgadnianie połączeń, DNS, VoIP i ruch gier omijają kolejkę masową. 0 wyłącza tę funkcję. Wartość musi być mniejsza niż pełnowymiarowy segment: segment ruchu masowego, który by się zakwalifikował, trafiłby do pasma priorytetowego."
-
-msgid "Small packet: priority"
-msgstr "Mały pakiet: priorytet"
-
-msgid "Priority %d (served past the bulk queue)"
-msgstr "Priorytet %d (obsługiwany poza kolejką masową)"
-
-msgid "Priority %d (bulk queue)"
-msgstr "Priorytet %d (kolejka masowa)"
-
-msgid "Uplink switch port"
-msgstr "Port uplink przełącznika"
-
-msgid "Left empty this is taken from the WAN interface, with any VLAN id stripped, since the switch knows only the port. Set it if that guess is wrong."
-msgstr "Pozostawienie pustego pola powoduje pobranie portu z interfejsu WAN po usunięciu identyfikatora VLAN, ponieważ przełącznik zna tylko port. Ustaw wartość ręcznie, jeśli to rozpoznanie jest błędne."
-
-msgid "auto"
-msgstr "automatycznie"
-
-msgid "Marking rules"
-msgstr "Reguły znakowania"
-
-msgid "Each rule is installed on the uplink port, matched as the returning half of the connection with source and destination swapped, so the download direction is marked. The upload half is installed on the ports your clients sit behind only when \"Mark upload\" is set above. Ports may be single or a range (5000-5500), and several may be listed. The switch matches addresses and ports only - there is no matching by domain name."
-msgstr "Każda reguła jest instalowana na porcie uplink i dopasowywana jako powrotna połowa połączenia z zamienionym adresem źródłowym i docelowym, dzięki czemu znakowany jest kierunek pobierania (download). Kierunek wysyłania (upload) jest instalowany na portach klientów tylko wtedy, gdy powyżej włączono opcję \"Znakuj wysyłanie (upload)\". Porty można podawać pojedynczo lub jako zakres (5000-5500), można też wymienić ich kilka. Przełącznik dopasowuje wyłącznie adresy i porty – brak dopasowywania po nazwach domen."
-
-msgid "Name"
-msgstr "Nazwa"
-
-msgid "Protocol"
-msgstr "Protokół"
-
-msgid "TCP and UDP"
-msgstr "TCP i UDP"
-
-msgid "TCP"
-msgstr "TCP"
-
-msgid "UDP"
-msgstr "UDP"
-
-msgid "Source address"
-msgstr "Adres źródłowy"
-
-msgid "Optional. Addresses or CIDRs, space separated; IPv4 and IPv6 may be mixed."
-msgstr "Opcjonalne. Adresy lub sieci CIDR oddzielone spacjami; można łączyć IPv4 i IPv6."
-
-msgid "Destination address"
-msgstr "Adres docelowy"
-
-msgid "Optional, same syntax as the source address."
-msgstr "Opcjonalne, składnia taka sama jak dla adresu źródłowego."
-
-msgid "Source port"
-msgstr "Port źródłowy"
-
-msgid "Optional. A port, a range, or several separated by spaces."
-msgstr "Opcjonalne. Pojedynczy port, zakres lub kilka portów oddzielonych spacjami."
-
-msgid "Destination port"
-msgstr "Port docelowy"
-
-msgid "Optional, same syntax as the source port. This is the usual way to name a service."
-msgstr "Opcjonalne, składnia taka sama jak dla portu źródłowego. Jest to typowy sposób wskazania usługi."
-
-msgid "Class"
-msgstr "Klasa"
-
-msgid "A class only changes the queue if the map below turns it into a priority of 4 or more. It also reaches Wi-Fi, which reads the DSCP for its own access categories."
-msgstr "Klasa zmienia kolejkę tylko wtedy, gdy poniższa mapa zamieni ją na priorytet 4 lub wyższy. Trafia również do Wi-Fi, które odczytuje DSCP na potrzeby własnych kategorii dostępu."
-
-msgid "CS0 - best effort"
-msgstr "CS0 - najlepszy wysiłek"
-
-msgid "CS1 - scavenger / bulk"
-msgstr "CS1 - tło / masowe"
-
-msgid "CS3 - broadcast video"
-msgstr "CS3 - transmisja wideo"
-
-msgid "AF31 - multimedia streaming"
-msgstr "AF31 - strumieniowanie multimediów"
-
-msgid "CS4 - real-time interactive (games)"
-msgstr "CS4 - interaktywne w czasie rzeczywistym (gry)"
-
-msgid "AF41 - multimedia conferencing (calls)"
-msgstr "AF41 - konferencje multimedialne (rozmowy)"
-
-msgid "CS5 - signalling, DNS"
-msgstr "CS5 - sygnalizacja, DNS"
-
-msgid "EF - voice bearer"
-msgstr "EF - transmisja głosu"
-
-msgid "CS6 - network control"
-msgstr "CS6 - sterowanie siecią"
-
-msgid "DSCP to priority"
-msgstr "DSCP na priorytet"
-
-msgid "What a mark is worth once the switch reads it. Applied with dcb app on every switch port, so it classifies traffic marked by these rules and traffic that arrives already marked alike. Anything unlisted stays at priority 0 and rides the bulk queue."
-msgstr "Wartość oznaczenia odczytanego przez przełącznik. Stosowane poleceniem dcb app na każdym porcie przełącznika, dzięki czemu klasyfikuje ruch oznaczony tymi regułami oraz ruch, który już przychodzi z takim oznaczeniem. Wszystko, czego nie wymieniono, pozostaje z priorytetem 0 i korzysta z kolejki masowej."
-
-msgid "DSCP"
-msgstr "DSCP"
-
-msgid "Priority"
-msgstr "Priorytet"
-
-msgid "32 (CS4 - games)"
-msgstr "32 (CS4 - gry)"
-
-msgid "34 (AF41 - calls)"
-msgstr "34 (AF41 - rozmowy)"
-
-msgid "40 (CS5 - signalling, DNS)"
-msgstr "40 (CS5 - sygnalizacja, DNS)"
-
-msgid "46 (EF - voice)"
-msgstr "46 (EF - głos)"
-
-msgid "48 (CS6 - control)"
-msgstr "48 (CS6 - sterowanie)"
+msgid "Advanced Settings"
+msgstr "Ustawienia zaawansowane"
 
 msgid "Enable marking rules"
 msgstr "Włącz reguły znakowania"
 
-msgid "Turns the rules below off without deleting them. The DSCP maps and the small-packet priority stay in effect either way."
-msgstr "Wyłącza poniższe reguły bez ich usuwania. Mapy DSCP i priorytet małych pakietów pozostają aktywne niezależnie od tego ustawienia."
+msgid "The DSCP map and the small packet priority stay in effect either way."
+msgstr "Mapa DSCP oraz priorytet małych pakietów pozostają aktywne niezależnie od tego ustawienia."
 
-msgid "Frames up to this IP length take the priority below whatever their marking: ACKs, handshakes, DNS, VoIP and game traffic jump the bulk queue. 0 disables. A value just under the MTU means \"everything that is not a full-size bulk frame\"."
-msgstr "Ramki o długości IP do tej wartości otrzymują poniższy priorytet niezależnie od oznaczenia: pakiety ACK, uzgadnianie połączeń, DNS, VoIP i ruch gier omijają kolejkę masową. 0 wyłącza tę funkcję. Wartość tuż poniżej MTU oznacza \"wszystko, co nie jest pełnowymiarową ramką masową\"."
+msgid "Small packet length"
+msgstr "Długość małego pakietu"
 
-msgid "Each rule is applied in both directions: as written on the ports your clients sit behind, and mirrored on the uplink port so the returning half of the same connection is marked too. Ports may be single or a range (5000-5500), and several may be listed. The switch matches addresses and ports only - there is no matching by domain name."
-msgstr "Każda reguła jest stosowana w obu kierunkach: zgodnie z konfiguracją na portach, za którymi znajdują się klienci, oraz jako odbicie na porcie uplink, aby oznaczyć również ruch powrotny tego samego połączenia. Port może być pojedynczy lub stanowić zakres (5000-5500), można też podać kilka portów. Przełącznik dopasowuje tylko adresy i porty, bez dopasowywania nazw domen."
+msgid "Packets up to this IP length take the small packet priority whatever their marking: ACKs, DNS, VoIP and game traffic. Keep it below a full-size segment. 0 disables."
+msgstr "Pakiety o długości IP do tej wartości otrzymują priorytet małych pakietów niezależnie od ich oznaczenia: pakiety ACK, DNS, VoIP oraz ruch gier. Ustaw wartość poniżej pełnowymiarowego segmentu. 0 wyłącza tę funkcję."
+
+msgid "Small packet priority"
+msgstr "Priorytet małych pakietów"
+
+msgid "%d - priority band"
+msgstr "%d - pasmo priorytetowe"
+
+msgid "%d - bulk band"
+msgstr "%d - pasmo masowe (bulk)"
+
+msgid "Uplink switch port"
+msgstr "Port uplink przełącznika"
+
+msgid "The switch port the download half of each rule is installed on. Left empty, it is taken from the WAN interface."
+msgstr "Port przełącznika, na którym instalowana jest część reguły odpowiadająca za pobieranie (download). Pozostawienie pustego pola powoduje pobranie go z interfejsu WAN."
+
+msgid "Mark upload"
+msgstr "Znakuj wysyłanie (upload)"
+
+msgid "Also installs each rule on every client-facing port. This costs a classifier entry per port, and small upload packets are prioritized without it."
+msgstr "Instaluje również każdą regułę na każdym porcie klienckim. Zużywa to wpis klasyfikatora na każdy port, a małe pakiety wychodzące (upload) są priorytetyzowane nawet bez tej opcji."
+
+msgid "Marking Rules"
+msgstr "Reguły znakowania"
+
+msgid "A rule marks the download direction of the flows it matches. The switch matches addresses and ports only, not domain names."
+msgstr "Reguła znakuje kierunek pobierania (download) dopasowanych strumieni. Przełącznik dopasowuje wyłącznie adresy i porty – nie obsługuje nazw domen."
+
+msgid "Unnamed rule"
+msgstr "Reguła bez nazwy"
+
+msgid "Name"
+msgstr "Nazwa"
+
+msgid "Match"
+msgstr "Dopasowanie"
+
+msgid "From"
+msgstr "Z"
+
+msgid "To"
+msgstr "Do"
+
+msgid "any host"
+msgstr "dowolnego hosta"
+
+msgid "port"
+msgstr "port"
+
+msgid "Class"
+msgstr "Klasa"
+
+msgid "Invalid class"
+msgstr "Nieprawidłowa klasa"
+
+msgid "Priority %s"
+msgstr "Priorytet %s"
+
+msgid "Unmapped - bulk band"
+msgstr "Nieprzypisany - pasmo masowe (bulk)"
+
+msgid "Enable"
+msgstr "Włącz"
+
+msgid "Protocol"
+msgstr "Protokół"
+
+msgid "Destination address"
+msgstr "Adres docelowy"
+
+msgid "Source address"
+msgstr "Adres źródłowy"
+
+msgid "IPv4 and IPv6 addresses or subnets."
+msgstr "Adresy lub podsieci IPv4 oraz IPv6."
+
+msgid "any"
+msgstr "dowolny"
+
+msgid "Destination port"
+msgstr "Port docelowy"
+
+msgid "Source port"
+msgstr "Port źródłowy"
+
+msgid "Ports or port ranges, such as 5000-5500."
+msgstr "Porty lub zakresy portów, np. 5000-5500."
+
+msgid "The DSCP to mark with, as a class name or a number from 0 to 63. It picks the switch queue through the DSCP map below and the Wi-Fi access category directly."
+msgstr "Wartość DSCP używana do znakowania – jako nazwa klasy lub liczba od 0 do 63. Wybiera kolejkę przełącznika poprzez poniższą mapę DSCP oraz bezpośrednio kategorię dostępu Wi-Fi."
+
+msgid "Expecting a class name or a DSCP value from 0 to 63"
+msgstr "Oczekiwano nazwy klasy lub wartości DSCP z zakresu od 0 do 63"
+
+msgid "A rule needs an address or a port, or it would mark all traffic"
+msgstr "Reguła wymaga podania adresu lub portu, inaczej oznaczałaby cały ruch"
+
+msgid "Best effort"
+msgstr "Najlepszy wysiłek (best effort)"
+
+msgid "Lower effort"
+msgstr "Niższy priorytet (lower effort)"
+
+msgid "Scavenger, bulk"
+msgstr "Tło, ruch masowy (bulk)"
+
+msgid "High-throughput data"
+msgstr "Dane o dużej przepustowości"
+
+msgid "Operations, administration"
+msgstr "Operacje i administracja"
+
+msgid "Low-latency data"
+msgstr "Dane o niskim opóźnieniu"
+
+msgid "Broadcast video"
+msgstr "Transmisja wideo"
+
+msgid "Multimedia streaming"
+msgstr "Strumieniowanie multimediów"
+
+msgid "Real-time interactive, games"
+msgstr "Interaktywne w czasie rzeczywistym, gry"
+
+msgid "Multimedia conferencing, calls"
+msgstr "Konferencje multimedialne, rozmowy"
+
+msgid "Signalling, DNS"
+msgstr "Sygnalizacja, DNS"
+
+msgid "Voice admit"
+msgstr "Dopuszczanie głosu (voice admit)"
+
+msgid "Telephony, voice"
+msgstr "Telefonia, głos"
+
+msgid "Network control"
+msgstr "Sterowanie siecią"
+
+msgid "Reserved"
+msgstr "Zarezerwowane"
+
+msgid "DSCP Map"
+msgstr "Mapa DSCP"
+
+msgid "What a DSCP is worth once the switch reads it, for traffic these rules mark and traffic that arrives marked alike. Unlisted values stay in the bulk band."
+msgstr "Określa priorytet nadawany po odczytaniu wartości DSCP przez przełącznik – zarówno dla ruchu oznaczonego tymi regułami, jak i ruchu przychodzącego już z oznaczeniem. Niewymienione wartości pozostają w paśmie masowym (bulk)."
+
+msgid "DSCP"
+msgstr "DSCP"
+
+msgid "This DSCP is already mapped"
+msgstr "Ta wartość DSCP jest już przypisana"
+
+msgid "Priority"
+msgstr "Priorytet"
